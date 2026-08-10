@@ -56,7 +56,7 @@ export default function LoginPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full mt-1 mb-4 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full mt-1 mb-4 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400 text-slate-900 bg-white placeholder-gray-400 font-medium"
         />
 
         <label className="text-sm text-gray-600">Password</label>
@@ -66,7 +66,7 @@ export default function LoginPage() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mt-1 mb-6 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full mt-1 mb-6 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400 text-slate-900 bg-white placeholder-gray-400 font-medium"
         />
 
         {error && <p className="text-sm text-red-600 mb-4">{error}</p>}

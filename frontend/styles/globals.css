@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: 'Inter', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+}
+
+/* Dark mode (default) */
+.dark-mode body, body {
+  background-color: #0B0F17;
+  color: #F8FAFC;
+  font-family: var(--font-inter);
+}
+
+/* Light mode */
+.light-mode body {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  font-family: var(--font-inter);
+}
+
+.light-mode aside {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+.light-mode header {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+.light-mode .bg-\[\#131B2A\] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .bg-\[\#0F172A\] {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .text-white {
+  color: #0F172A !important;
+}
+
+.light-mode .text-slate-400 {
+  color: #64748B !important;
+}
+
+.light-mode .border-slate-800 {
+  border-color: #E2E8F0 !important;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: var(--font-outfit);
+}
+
+.shadow-glow-amber {
+  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.45);
+}
+
+.shadow-glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.45);
+}
+
+.shadow-glow-cyan {
+  box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.45);
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Print view for PDF generation */
+@media print {
+  aside, header, button, nav {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .shadow-glass {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+}

@@ -5,13 +5,13 @@ services:
     image: postgres:16-alpine
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-repricer}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repricer_secure_pass_2026}
-      POSTGRES_DB: ${POSTGRES_DB:-repricer}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-repricer}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,9 +22,9 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-repricer}:${POSTGRES_PASSWORD:-repricer_secure_pass_2026}@db:5432/${POSTGRES_DB:-repricer}
-      SECRET_KEY: ${SECRET_KEY:-prod_super_secret_jwt_key_987654321}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-Y29uZmlndXJhdGlvbl9zZWNyZXRfa2V5X2Zvcl9mZXJuZXRf}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ENVIRONMENT: production
       CORS_ALLOWED_ORIGINS: "*"
     depends_on:

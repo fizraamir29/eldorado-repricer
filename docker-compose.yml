@@ -3,8 +3,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: repricer
-      POSTGRES_PASSWORD: repricer
+      POSTGRES_USER: ${POSTGRES_USER:-repricer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repricer_dev_pass}
       POSTGRES_DB: repricer
     volumes:
       - pgdata:/var/lib/postgresql/data

@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { LayoutGrid, History, LogOut, Radio, Link2, BarChart3, ShieldCheck, Zap, Settings, Sun, Moon } from "lucide-react";
+import { LayoutGrid, History, LogOut, Radio, Link2, BarChart3, ShieldCheck, Zap, Settings, Sun, Moon, User as UserIcon } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import useRealtime from "../lib/useRealtime";
 import { useTheme } from "../lib/useTheme";
+import api from "../lib/api";
 
 const NAV_ITEMS = [
   { href: "/listings", label: "Listings & Bot", icon: LayoutGrid },
@@ -25,6 +27,13 @@ export default function Layout({ children }) {
   const router = useRouter();
   const { connected, lastEvent } = useRealtime();
   const { mode, toggleMode, accentObj } = useTheme();
+  const [userProfile, setUserProfile] = useState(null);
+
+  useEffect(() => {
+    api.get("/auth/me")
+      .then((res) => setUserProfile(res.data))
+      .catch(() => {});
+  }, []);
 
   function logout() {
     localStorage.removeItem("token");
@@ -35,7 +44,7 @@ export default function Layout({ children }) {
     <div className={`min-h-screen flex text-slate-100 font-sans ${mode === "light" ? "bg-[#F8FAFC]" : "bg-[#0B0F17]"}`}>
       {/* Sidebar */}
       <aside className="w-64 bg-[#0F172A]/90 border-r border-slate-800/80 flex flex-col p-5 backdrop-blur-xl shrink-0">
-        <div className="flex items-center gap-3 mb-8 px-2">
+        <div className="flex items-center gap-3 mb-6 px-2">
           <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${accentObj.primary} flex items-center justify-center ${accentObj.shadow}`}>
             <Zap size={22} className="text-white fill-white" />
           </div>
@@ -46,6 +55,19 @@ export default function Layout({ children }) {
             </div>
           </div>
         </div>
+
+        {/* User Card */}
+        {userProfile && (
+          <div className="mb-6 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+              <UserIcon size={16} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-white truncate">{userProfile.full_name || userProfile.email}</div>
+              <div className="text-[10px] text-slate-400 truncate">@{userProfile.username || "admin"}</div>
+            </div>
+          </div>
+        )}
 
         <nav className="flex flex-col gap-1.5 flex-1">
           {NAV_ITEMS.map((item) => {

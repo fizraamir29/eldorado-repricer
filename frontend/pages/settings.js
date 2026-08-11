@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Sun, Moon, Palette, Sliders, Bell, Save, CheckCircle2, ShieldCheck, Zap, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sun, Moon, Palette, Sliders, Bell, Save, CheckCircle2, ShieldCheck, Zap, Sparkles, UserCheck, Clock, Mail, User } from "lucide-react";
 import Layout from "../components/Layout";
 import { useTheme, ACCENTS } from "../lib/useTheme";
+import api from "../lib/api";
 
 export default function SettingsPage() {
   const { mode, toggleMode, accent, changeAccent, accentObj } = useTheme();
+  const [userProfile, setUserProfile] = useState(null);
 
   const [botDefaults, setBotDefaults] = useState({
     undercut_step: "0.01",
@@ -20,6 +22,12 @@ export default function SettingsPage() {
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    api.get("/auth/me")
+      .then((res) => setUserProfile(res.data))
+      .catch(() => {});
+  }, []);
 
   function handleSave() {
     localStorage.setItem("bot_defaults", JSON.stringify(botDefaults));
@@ -38,7 +46,7 @@ export default function SettingsPage() {
               <Sliders className={accentObj.text} size={24} /> Dashboard Customization & Settings
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Customize your theme, accent color palette, bot default parameters, and alert preferences.
+              Customize your theme, accent color palette, bot default parameters, and view active admin account metadata.
             </p>
           </div>
 
@@ -50,6 +58,58 @@ export default function SettingsPage() {
             {savedSuccess ? "Settings Saved!" : "Save All Settings"}
           </button>
         </div>
+
+        {/* Section 0: Admin Account Information */}
+        {userProfile && (
+          <div className="bg-[#131B2A] border border-slate-800 rounded-2xl p-6 shadow-glass space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center`}>
+                  <UserCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white font-heading">Active Administrator Profile</h3>
+                  <p className="text-xs text-slate-400">Registered seller account metadata stored in backend database</p>
+                </div>
+              </div>
+              <span className="text-xs px-3 py-1 rounded-full font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5">
+                <ShieldCheck size={12} /> Admin Authenticated
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+              <div className="bg-[#0F172A] border border-slate-800/80 rounded-xl p-3.5">
+                <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <User size={12} /> Full Name
+                </div>
+                <div className="text-sm font-semibold text-white truncate">{userProfile.full_name || "N/A"}</div>
+              </div>
+
+              <div className="bg-[#0F172A] border border-slate-800/80 rounded-xl p-3.5">
+                <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <User size={12} /> Username
+                </div>
+                <div className="text-sm font-semibold text-emerald-400 truncate">@{userProfile.username || "admin"}</div>
+              </div>
+
+              <div className="bg-[#0F172A] border border-slate-800/80 rounded-xl p-3.5">
+                <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Mail size={12} /> Email Address
+                </div>
+                <div className="text-sm font-semibold text-white truncate">{userProfile.email}</div>
+              </div>
+
+              <div className="bg-[#0F172A] border border-slate-800/80 rounded-xl p-3.5">
+                <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Clock size={12} /> Last Login Time
+                </div>
+                <div className="text-xs font-semibold text-slate-300 truncate">
+                  {userProfile.last_login_at ? new Date(userProfile.last_login_at).toLocaleString() : "First Login"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Section 1: Appearance & Theme Customization */}
         <div className="bg-[#131B2A] border border-slate-800 rounded-2xl p-6 shadow-glass space-y-6">

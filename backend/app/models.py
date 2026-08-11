@@ -32,6 +32,9 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str | None] = mapped_column(String(100), unique=True, index=True, nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Encrypted at the application layer (see app/security.py) before storage.
@@ -40,6 +43,7 @@ class User(Base):
     marketplace_api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     listings: Mapped[list["Listing"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 

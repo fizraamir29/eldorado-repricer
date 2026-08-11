@@ -47,6 +47,40 @@ async def test_protected_endpoint_requires_token(client):
 
 
 @pytest.mark.asyncio
+async def test_signup_with_metadata_and_get_me(client):
+    signup_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "meta@example.com",
+            "password": "password123",
+            "full_name": "Eldorado Admin",
+            "username": "eldorado_bot_admin",
+            "age": 28,
+        },
+    )
+    assert signup_resp.status_code == 201
+    data = signup_resp.json()
+    assert data["full_name"] == "Eldorado Admin"
+    assert data["username"] == "eldorado_bot_admin"
+    assert data["age"] == 28
+
+    login_resp = await client.post(
+        "/auth/login",
+        data={"username": "eldorado_bot_admin", "password": "password123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+
+    me_resp = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_resp.status_code == 200
+    me_data = me_resp.json()
+    assert me_data["email"] == "meta@example.com"
+    assert me_data["full_name"] == "Eldorado Admin"
+    assert me_data["last_login_at"] is not None
+
+
+@pytest.mark.asyncio
 async def test_marketplace_credentials_are_not_returned_in_responses(client, auth_headers):
     resp = await client.post(
         "/auth/marketplace-credentials",

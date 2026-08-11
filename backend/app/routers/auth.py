@@ -30,13 +30,30 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     return user
 
 
+@router.get("/me", response_model=UserOut)
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Fetch profile info of the currently logged-in user."""
+    return current_user
+
+
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def signup(payload: UserCreate, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(User).where(User.email == payload.email))
-    if existing.scalar_one_or_none():
+    existing_email = await db.execute(select(User).where(User.email == payload.email))
+    if existing_email.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    user = User(email=payload.email, hashed_password=hash_password(payload.password))
+    if payload.username:
+        existing_username = await db.execute(select(User).where(User.username == payload.username))
+        if existing_username.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already taken")
+
+    user = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        full_name=payload.full_name,
+        username=payload.username,
+        age=payload.age,
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -45,11 +62,19 @@ async def signup(payload: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == form_data.username))
+    # Support logging in with either email or username
+    result = await db.execute(
+        select(User).where((User.email == form_data.username) | (User.username == form_data.username))
+    )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+
+    from datetime import datetime, timezone
+    user.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.add(user)
+    await db.commit()
 
     token = create_access_token(subject=user.id)
     return {"access_token": token, "token_type": "bearer"}

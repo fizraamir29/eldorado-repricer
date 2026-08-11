@@ -9,13 +9,20 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
+    full_name: str | None = None
+    username: str | None = None
+    age: int | None = Field(default=None, ge=10, le=120)
 
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     email: EmailStr
+    full_name: str | None = None
+    username: str | None = None
+    age: int | None = None
     created_at: datetime
+    last_login_at: datetime | None = None
 
 
 class MarketplaceCredentials(BaseModel):

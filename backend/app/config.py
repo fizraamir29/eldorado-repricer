@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # "development" auto-creates tables on startup for convenience.
     # "production" expects you to have run `alembic upgrade head` yourself.
     environment: str = "development"
+    single_admin_mode: bool = True
 
     # Comma-separated list, e.g. "https://yourdashboard.com,https://app.yourdashboard.com"
     cors_allowed_origins: str = "http://localhost:3000"

@@ -30,14 +30,33 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     return user
 
 
+@router.get("/setup-status")
+async def get_setup_status(db: AsyncSession = Depends(get_db)):
+    """Check if an administrator account has already been registered."""
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return {"has_admin": len(users) > 0, "admin_count": len(users)}
+
+
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: User = Depends(get_current_user)):
     """Fetch profile info of the currently logged-in user."""
     return current_user
 
 
+from app.config import settings
+
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def signup(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+    # Restrict registration in production if an admin account is already set up to secure the portal
+    if settings.single_admin_mode and settings.environment == "production":
+        user_count = await db.execute(select(User))
+        if user_count.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin account is already set up. Public sign-up is locked for portal security.",
+            )
+
     existing_email = await db.execute(select(User).where(User.email == payload.email))
     if existing_email.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")

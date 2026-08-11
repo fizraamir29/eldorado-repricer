@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { ShieldCheck, Lock } from "lucide-react";
 import api from "../lib/api";
 
 export default function LoginPage() {
+  const [hasAdmin, setHasAdmin] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
@@ -13,29 +15,36 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    // Check if an admin account has already been initialized
+    api.get("/auth/setup-status")
+      .then((res) => {
+        const adminExists = res.data?.has_admin ?? false;
+        setHasAdmin(adminExists);
+        if (!adminExists) {
+          setIsSignUp(true);
+        } else {
+          setIsSignUp(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        // Try registering new account
-        try {
-          await api.post("/auth/signup", {
-            email,
-            password,
-            full_name: fullName || null,
-            username: username || null,
-            age: age ? parseInt(age, 10) : null,
-          });
-        } catch (signupErr) {
-          // If already registered, attempt auto-login with provided credentials
-          const detail = signupErr.response?.data?.detail || "";
-          if (!detail.includes("already registered") && !detail.includes("already taken")) {
-            throw signupErr;
-          }
-        }
+      if (isSignUp && !hasAdmin) {
+        // First-time Initial Admin Account Registration
+        await api.post("/auth/signup", {
+          email,
+          password,
+          full_name: fullName || null,
+          username: username || null,
+          age: age ? parseInt(age, 10) : null,
+        });
       }
 
       // Log in to retrieve JWT access token
@@ -50,8 +59,8 @@ export default function LoginPage() {
       localStorage.setItem("token", data.access_token);
       router.push("/listings");
     } catch (err) {
-      if (isSignUp) {
-        setError(err.response?.data?.detail || "Registration/Login failed. Please check your inputs or try signing in.");
+      if (isSignUp && !hasAdmin) {
+        setError(err.response?.data?.detail || "Initial Admin Registration failed. Please check inputs.");
       } else {
         setError(err.response?.data?.detail || "Incorrect email/username or password.");
       }
@@ -68,14 +77,21 @@ export default function LoginPage() {
             R
           </div>
           <h1 className="text-2xl font-bold text-slate-800">
-            {isSignUp ? "Create Admin Account" : "Sign in to Repricer"}
+            {!hasAdmin ? "Initial Admin Setup" : "Sign in to Repricer"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Automated Eldorado Repricing & Inventory Portal
           </p>
+
+          {hasAdmin && (
+            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+              <Lock size={12} className="text-emerald-600" /> Private Admin Access Only
+            </div>
+          )}
         </div>
 
-        {isSignUp && (
+        {/* Initial Admin Setup Fields (only shown during first-time setup) */}
+        {!hasAdmin && isSignUp && (
           <>
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
@@ -126,10 +142,10 @@ export default function LoginPage() {
 
         <div className="mb-4">
           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-            Email Address
+            Email Address or Username
           </label>
           <input
-            type="email"
+            type="text"
             required
             placeholder="admin@example.com"
             value={email}
@@ -164,21 +180,17 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-emerald-600 text-white font-semibold py-3 rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-md shadow-emerald-200 disabled:opacity-50 text-sm cursor-pointer"
         >
-          {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign in"}
+          {loading ? "Processing..." : !hasAdmin ? "Initialize Admin & Sign In" : "Sign in"}
         </button>
 
-        <div className="mt-6 text-center border-t border-slate-100 pt-4">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError("");
-            }}
-            className="text-xs font-medium text-emerald-600 hover:text-emerald-800 hover:underline"
-          >
-            {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
-          </button>
-        </div>
+        {!hasAdmin && (
+          <div className="mt-4 text-center">
+            <p className="text-[11px] text-slate-400">
+              <ShieldCheck size={12} className="inline mr-1 text-emerald-600" />
+              Initial setup will register your primary Administrator account.
+            </p>
+          </div>
+        )}
       </form>
     </div>
   );

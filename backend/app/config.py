@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     encryption_key: str = "CHANGE_ME_GENERATE_A_REAL_FERNET_KEY"
     jwt_secret: str = "CHANGE_ME_JWT_SECRET"
     jwt_algorithm: str = "HS256"
-    jwt_expiry_minutes: int = 60 * 24
+    jwt_expiry_minutes: int = 60 * 24 * 365  # 1 year session
 
     # --- Marketplace API ---
     # Eldorado does not publish public developer docs. These values must be

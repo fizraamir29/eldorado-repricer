@@ -25,24 +25,27 @@ def calculate_price(
 ) -> PricingDecision:
     """
     Decide the next price for a listing.
-
-    Rules (from the client's spec):
-      1. Find the lowest competitor price.
-      2. Undercut it by exactly `undercut_step` (default $0.01) — never more.
-      3. Never go below min_price or above max_price.
-      4. If we are already the lowest, don't keep racing ourselves down —
-         hold the current price.
     """
     if not competitor_prices:
         return PricingDecision(current_price, None, "no_competitors")
 
-    lowest = min(competitor_prices)
+    # Filter out our own current price so we don't undercut ourselves.
+    other_prices = [p for p in competitor_prices if p != current_price]
+    
+    if not other_prices:
+        # We are the only seller left on the market! Maximize profit by jumping to max_price.
+        if current_price < max_price:
+            return PricingDecision(max_price, None, "clamped_to_max")
+        return PricingDecision(current_price, None, "no_competitors")
 
-    # We're already at or below the market lowest — no need to undercut further.
-    if current_price <= lowest:
-        return PricingDecision(current_price, lowest, "no_change")
-
+    lowest = min(other_prices)
+    
+    # We want to be exactly `undercut_step` below the lowest competitor.
     candidate = round(lowest - undercut_step, 2)
+    
+    # If the candidate is exactly our current price, we are perfectly positioned.
+    if candidate == current_price:
+        return PricingDecision(current_price, lowest, "no_change")
 
     if candidate < min_price:
         return PricingDecision(min_price, lowest, "clamped_to_min")

@@ -96,7 +96,7 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             "listing_id": listing.id,
             "new_price": float(listing.current_price),
             "reason": decision.reason,
-            "checked_at": listing.last_checked_at.isoformat(),
+            "checked_at": listing.last_checked_at.isoformat() if listing.last_checked_at else "",
         })
         if notification:
             await manager.send_to_user(listing.user_id, {

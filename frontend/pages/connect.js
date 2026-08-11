@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link2, CheckCircle2, ShieldCheck, Lock, KeyRound, Info } from "lucide-react";
 import Layout from "../components/Layout";
 import api from "../lib/api";
@@ -8,6 +8,18 @@ export default function ConnectPage() {
   const [clientSecret, setClientSecret] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Fetch existing credentials so the client knows it's already connected
+    api.get("/auth/me")
+      .then((res) => {
+        if (res.data?.marketplace_client_id) {
+          setClientId(res.data.marketplace_client_id);
+          setSaved(true); // show the green connected message automatically
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -62,6 +74,7 @@ export default function ConnectPage() {
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder="e.g. a1b2c3d4-5678-90ab-cdef-1234567890ab"
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-[#0F172A] border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 transition font-mono"
                 />
                 <KeyRound size={16} className="absolute right-4 top-3.5 text-slate-500" />
@@ -79,6 +92,7 @@ export default function ConnectPage() {
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder="Paste your secret from Eldorado Client Credentials creation..."
+                  autoComplete="new-password"
                   className="w-full px-4 py-3 bg-[#0F172A] border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 transition font-mono"
                 />
                 <Lock size={16} className="absolute right-4 top-3.5 text-slate-500" />

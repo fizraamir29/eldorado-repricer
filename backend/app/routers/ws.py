@@ -26,17 +26,19 @@ logger = logging.getLogger("ws")
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str, db: AsyncSession = Depends(get_db)):
+async def websocket_endpoint(websocket: WebSocket, token: str):
     try:
         user_id = decode_access_token(token)
     except Exception:
         await websocket.close(code=4401)  # custom close code = unauthorized
         return
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    if not result.scalar_one_or_none():
-        await websocket.close(code=4401)
-        return
+    from app.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.id == user_id))
+        if not result.scalar_one_or_none():
+            await websocket.close(code=4401)
+            return
 
     await manager.connect(user_id, websocket)
     try:

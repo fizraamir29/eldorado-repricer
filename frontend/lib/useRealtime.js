@@ -18,7 +18,7 @@ export default function useRealtime() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
     const wsUrl = apiUrl.replace(/^http/, "ws") + `/ws?token=${encodeURIComponent(token)}`;
 
     const ws = new WebSocket(wsUrl);

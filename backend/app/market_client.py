@@ -134,15 +134,28 @@ class EldoradoClient:
 
     async def get_competitor_offers(self, game_id: str, item_id: str) -> List[Dict[str, Any]]:
         """Fetch active competing seller offers for a given game/item."""
-        data = await self._request("GET", f"/api/offers/flexible/{game_id}/{item_id}")
+        # Found in Swagger: FlexibleOfferPublic
+        # We pass gameId to filter
+        params = {"gameId": game_id, "pageSize": 50}
+        # In case the frontend passes the direct ID to search, we can use it.
+        if item_id and item_id != "default":
+            # If item_id looks like a GUID, we could query it directly, but searching the market is safer.
+            pass
+        
+        data = await self._request("GET", "/api/flexibleOffers", params=params)
         if isinstance(data, list):
             return data
-        return data.get("offers", [])
+        return data.get("results", [])
 
     async def update_listing_price(self, listing_id: str, new_price: float) -> Dict[str, Any]:
         """Push a new price to our own listing via Eldorado Seller API."""
-        payload = {"price": round(new_price, 2)}
-        return await self._request("PUT", f"/api/offers/me/{listing_id}", json=payload)
+        # Found in Swagger: FlexibleOfferUserPrivate
+        payload = {
+            "price": round(new_price, 2),
+            "amount": round(new_price, 2),
+            "currency": "USD"
+        }
+        return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
 
     async def deliver_order(self, order_id: str, delivery_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Deliver an order as a seller via official Eldorado Seller API."""

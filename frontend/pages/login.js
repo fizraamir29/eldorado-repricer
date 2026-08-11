@@ -20,19 +20,27 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        // Register new account with full profile details
-        await api.post("/auth/signup", {
-          email,
-          password,
-          full_name: fullName || null,
-          username: username || null,
-          age: age ? parseInt(age, 10) : null,
-        });
+        // Try registering new account
+        try {
+          await api.post("/auth/signup", {
+            email,
+            password,
+            full_name: fullName || null,
+            username: username || null,
+            age: age ? parseInt(age, 10) : null,
+          });
+        } catch (signupErr) {
+          // If already registered, attempt auto-login with provided credentials
+          const detail = signupErr.response?.data?.detail || "";
+          if (!detail.includes("already registered") && !detail.includes("already taken")) {
+            throw signupErr;
+          }
+        }
       }
 
-      // Log in to retrieve JWT access token (supports email or username)
+      // Log in to retrieve JWT access token
       const form = new URLSearchParams();
-      form.append("username", isSignUp && username ? username : email);
+      form.append("username", email);
       form.append("password", password);
 
       const { data } = await api.post("/auth/login", form, {
@@ -43,7 +51,7 @@ export default function LoginPage() {
       router.push("/listings");
     } catch (err) {
       if (isSignUp) {
-        setError(err.response?.data?.detail || "Registration failed. Email or username may already be taken.");
+        setError(err.response?.data?.detail || "Registration/Login failed. Please check your inputs or try signing in.");
       } else {
         setError(err.response?.data?.detail || "Incorrect email/username or password.");
       }

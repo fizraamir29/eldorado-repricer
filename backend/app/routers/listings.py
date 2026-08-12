@@ -83,3 +83,71 @@ async def sync_listing(listing_id: str, current_user: User = Depends(get_current
         "last_checked_at": listing.last_checked_at.isoformat() if listing.last_checked_at else None,
     }
 
+
+@router.post("/sync-eldorado")
+async def sync_eldorado_listings(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.market_client import EldoradoClient
+    from app.security import decrypt_secret
+    from app.config import settings
+
+    client_id = settings.eldorado_client_id or current_user.marketplace_client_id
+    client_secret = settings.eldorado_client_secret or (decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None)
+    api_key = decrypt_secret(current_user.marketplace_api_key_encrypted) if current_user.marketplace_api_key_encrypted else None
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Eldorado credentials not configured")
+
+    client = EldoradoClient(client_id, client_secret, api_key)
+    try:
+        await client._authenticate()
+        offers = await client._request('GET', '/api/predefinedOffersUser/me')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch from Eldorado: {e}")
+
+    if not isinstance(offers, list):
+        offers = []
+
+    synced = 0
+    for offer in offers:
+        offer_id = offer.get("id")
+        if not offer_id:
+            continue
+            
+        # Check if already tracking
+        existing_res = await db.execute(select(Listing).where(Listing.marketplace_listing_id == offer_id, Listing.user_id == current_user.id))
+        if existing_res.scalar_one_or_none():
+            continue
+
+        game_name = offer.get("game", {}).get("name", "Unknown Game")
+        amount = offer.get("amount", "")
+        curr = offer.get("currency", "Units")
+        title = f"{amount} {curr}".strip()
+        price = float(offer.get("price", 0))
+
+        new_listing = Listing(
+            user_id=current_user.id,
+            marketplace_listing_id=offer_id,
+            game_name=game_name,
+            title=title,
+            current_price=price,
+            is_active=True
+        )
+        db.add(new_listing)
+        await db.flush()
+
+        # Create rule with Min Floor = Current Price (Safe, no drop)
+        new_rule = AutomationRule(
+            listing_id=new_listing.id,
+            enabled=True, # Auto Active
+            min_price=price, # Safe floor
+            max_price=price * 1.5,
+            undercut_step=0.01,
+            check_interval_minutes=5,
+            auto_greeting_enabled=False
+        )
+        db.add(new_rule)
+        synced += 1
+
+    await db.commit()
+    return {"status": "success", "synced_count": synced}
+

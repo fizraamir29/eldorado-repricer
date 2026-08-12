@@ -51,6 +51,13 @@ export default function ListingsPage() {
   async function load() {
     setLoading(true);
     try {
+      // Auto-sync new listings from Eldorado first
+      try {
+        await api.post("/listings/sync-eldorado");
+      } catch (syncErr) {
+        console.warn("Failed to auto-sync from Eldorado", syncErr);
+      }
+
       const { data } = await api.get("/listings");
       setListings(data);
 

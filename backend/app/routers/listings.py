@@ -100,15 +100,25 @@ async def sync_eldorado_listings(current_user: User = Depends(get_current_user),
     client = EldoradoClient(client_id, client_secret, api_key)
     try:
         await client._authenticate()
-        offers = await client._request('GET', '/api/predefinedOffersUser/me')
+        predef_offers = await client._request('GET', '/api/predefinedOffersUser/me')
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch from Eldorado: {e}")
+        predef_offers = []
 
-    if not isinstance(offers, list):
-        offers = []
+    try:
+        flex_offers = await client._request('GET', '/api/flexibleOffersUser/me')
+    except Exception as e:
+        flex_offers = []
+
+    if not isinstance(predef_offers, list):
+        predef_offers = []
+    if not isinstance(flex_offers, list):
+        flex_offers = []
+
+    # Combine both types of offers
+    all_offers = predef_offers + flex_offers
 
     synced = 0
-    for offer in offers:
+    for offer in all_offers:
         offer_id = offer.get("id")
         if not offer_id:
             continue
@@ -118,17 +128,30 @@ async def sync_eldorado_listings(current_user: User = Depends(get_current_user),
         if existing_res.scalar_one_or_none():
             continue
 
-        game_name = offer.get("game", {}).get("name", "Unknown Game")
-        amount = offer.get("amount", "")
-        curr = offer.get("currency", "Units")
-        title = f"{amount} {curr}".strip()
+        # Extract game name safely
+        game_name = "Unknown Game"
+        if isinstance(offer.get("game"), dict):
+            game_name = offer["game"].get("name", game_name)
+        elif isinstance(offer.get("item"), dict) and isinstance(offer["item"].get("game"), dict):
+             game_name = offer["item"]["game"].get("name", game_name)
+        
+        # Determine title
+        title_val = offer.get("offerTitle") or offer.get("title")
+        if not title_val:
+            amount = offer.get("amount", "")
+            curr = offer.get("currency", "Units")
+            title_val = f"{amount} {curr}".strip()
+            
+        if not title_val:
+            title_val = f"Offer {offer_id[:8]}"
+
         price = float(offer.get("price", 0))
 
         new_listing = Listing(
             user_id=current_user.id,
             marketplace_listing_id=offer_id,
             game_name=game_name,
-            title=title,
+            title=title_val,
             current_price=price,
             is_active=True
         )

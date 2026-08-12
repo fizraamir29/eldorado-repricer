@@ -190,9 +190,9 @@ class EldoradoClient:
                     return formatted_offers
         except Exception as e:
             logger.warning(f"Failed during Currency Offer check for {item_id}: {repr(e)}")
-            # Even if it failed, it might be a currency offer. We shouldn't blindly fall through 
-            # if we know it's a currency offer, but if it 404s, it means it's not a currency offer.
-            pass
+            # If it's a rate limit or 500 error, we should bubble it up so we don't mistakenly think the offer was deleted.
+            if "404" not in str(e):
+                raise MarketplaceAPIError(f"Marketplace API error during Currency check: {e}")
 
         # Check if it's a Predefined Offer by looking at our active predefined offers
         try:
@@ -275,15 +275,11 @@ class EldoradoClient:
         try:
             my_curr = await self._request("GET", f"/api/v1/currency-management/me/offers/{listing_id}")
             if my_curr and isinstance(my_curr, dict) and "offer" in my_curr:
-                c_payload = {
-                    "pricePerUnitInUSD": {
-                        "amount": round(new_price, 2),
-                        "currency": "USD"
-                    }
-                }
+                c_payload = {"amount": round(new_price, 2)}
                 return await self._request("PUT", f"/api/v1/currency-management/me/offers/{listing_id}/change-price", json=c_payload)
-        except Exception:
-            pass
+        except Exception as e:
+            if "404" not in str(e):
+                raise MarketplaceAPIError(f"Marketplace API error during Currency check in get_my_listing: {e}")
 
         # Determine if it's predefined or flexible by checking our own active lists
         try:

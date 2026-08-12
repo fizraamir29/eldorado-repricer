@@ -10,6 +10,7 @@ import { useTheme } from "../lib/useTheme";
 
 export default function AnalyticsPage() {
   const [listings, setListings] = useState([]);
+  const [rules, setRules] = useState({});
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const { lastEvent } = useRealtime();
@@ -24,6 +25,20 @@ export default function AnalyticsPage() {
       ]);
       setListings(listingsRes.data || []);
       setSummary(summaryRes.data || null);
+
+      if (listingsRes.data?.length > 0) {
+        const ruleEntries = await Promise.all(
+          listingsRes.data.map(async (l) => {
+            try {
+              const r = await api.get(`/listings/${l.id}/rule`);
+              return [l.id, r.data];
+            } catch (e) {
+              return [l.id, null];
+            }
+          })
+        );
+        setRules(Object.fromEntries(ruleEntries.filter(e => e[1] !== null)));
+      }
     } catch (e) {
       // Handled via interceptor
     } finally {
@@ -317,20 +332,30 @@ export default function AnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {listings.map((l) => (
-                    <tr key={l.id} className="hover:bg-slate-800/30 transition">
-                      <td className="px-4 py-3 font-medium text-white">{l.title}</td>
-                      <td className="px-4 py-3 text-slate-400">{l.game_name}</td>
-                      <td className={`px-4 py-3 font-bold ${accentObj.text}`}>${Number(l.current_price).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-xs">Undercut $0.01</td>
-                      <td className="px-4 py-3 text-xs text-amber-400 font-medium">#1 Lowest Price</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${accentObj.bg} ${accentObj.text} ${accentObj.border} border font-medium`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Active Bot
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {listings.map((l) => {
+                    const rule = rules[l.id];
+                    const isActive = rule ? rule.enabled : false;
+                    return (
+                      <tr key={l.id} className="hover:bg-slate-800/30 transition">
+                        <td className="px-4 py-3 font-medium text-white">{l.title}</td>
+                        <td className="px-4 py-3 text-slate-400">{l.game_name}</td>
+                        <td className={`px-4 py-3 font-bold ${accentObj.text}`}>${Number(l.current_price).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-xs">Undercut $0.01</td>
+                        <td className="px-4 py-3 text-xs text-amber-400 font-medium">#1 Lowest Price</td>
+                        <td className="px-4 py-3">
+                          {isActive ? (
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${accentObj.bg} ${accentObj.text} ${accentObj.border} border font-medium`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Active Bot
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 border-slate-700 border font-medium`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Bot Paused
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {listings.length === 0 && (
                     <tr>
                       <td colSpan={6} className="text-center py-8 text-slate-400 text-xs">

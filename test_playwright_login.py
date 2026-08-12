@@ -7,12 +7,8 @@ async def run():
     load_dotenv(".env")
     username = os.getenv("ELDORADO_USERNAME")
     password = os.getenv("ELDORADO_PASSWORD")
-    
-    if not username or not password:
-        print("ERROR: Please add ELDORADO_USERNAME and ELDORADO_PASSWORD to your .env file")
-        return
 
-    print("Starting Playwright Login Test (Debugging)...")
+    print("Starting Playwright Login Test (Parsing Inputs)...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -24,22 +20,46 @@ async def run():
         await page.goto("https://www.eldorado.gg/login", wait_until="domcontentloaded")
         await page.wait_for_timeout(5000)
         
-        title = await page.title()
-        print(f"Login Page Title: {title}")
+        # Let's inspect all input fields
+        locators = await page.locator("input").all()
+        print(f"\nFound {len(locators)} input fields. Inspecting them:")
         
-        # Take a screenshot to see what is actually on the screen
-        await page.screenshot(path="login_debug.png")
-        print("Saved login_debug.png")
+        email_selector = None
+        password_selector = None
         
-        # Save HTML to a file so we can inspect it
-        html = await page.content()
-        with open("login_debug.html", "w", encoding="utf-8") as f:
-            f.write(html)
-        print("Saved login_debug.html")
+        for i, loc in enumerate(locators):
+            html = await loc.evaluate("el => el.outerHTML")
+            name = await loc.get_attribute("name")
+            type_attr = await loc.get_attribute("type")
+            placeholder = await loc.get_attribute("placeholder")
+            print(f"Input {i}: type='{type_attr}', name='{name}', placeholder='{placeholder}'")
+            
+            # Identify the likely email and password fields
+            if type_attr == "email" or "email" in str(name).lower() or "email" in str(placeholder).lower():
+                email_selector = f'input[name="{name}"]' if name else f'input[type="{type_attr}"]'
+            if type_attr == "password" or "password" in str(name).lower() or "password" in str(placeholder).lower():
+                password_selector = f'input[name="{name}"]' if name else f'input[type="{type_attr}"]'
+                
+        print(f"\nGuessed Email Selector: {email_selector}")
+        print(f"Guessed Password Selector: {password_selector}")
 
-        # Let's try to find ANY input fields
-        inputs = await page.locator("input").count()
-        print(f"Total <input> fields found on page: {inputs}")
+        # If we found them, let's try to fill them!
+        if email_selector and password_selector and username and password:
+            print(f"\nTrying to login with guessed selectors...")
+            await page.fill(email_selector, username)
+            await page.fill(password_selector, password)
+            print("Filled credentials!")
+            
+            # Find the login button (usually type=submit)
+            await page.click("button[type='submit']")
+            print("Clicked submit! Waiting 10 seconds...")
+            await page.wait_for_timeout(10000)
+            
+            await page.goto("https://www.eldorado.gg/me/offers", wait_until="domcontentloaded")
+            await page.wait_for_timeout(5000)
+            print(f"Final Page Title: {await page.title()}")
+        else:
+            print("\nCould not find valid selectors or missing credentials in .env")
 
         await browser.close()
 

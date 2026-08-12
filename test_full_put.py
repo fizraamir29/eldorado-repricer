@@ -17,8 +17,13 @@ async def run():
     url = f"https://www.eldorado.gg/api/v1/currency-management/me/offers/{offer_id}"
     
     async with httpx.AsyncClient(headers=HEADERS) as client:
-        # GET the full offer
+        print(f"GET {url}")
         resp = await client.get(url)
+        print(f"Status: {resp.status_code}")
+        print(f"Response: {resp.text}")
+        if resp.status_code != 200:
+            return
+        
         offer_data = resp.json()
         print("GET Offer keys:", offer_data.keys())
         

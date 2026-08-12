@@ -59,7 +59,8 @@ export default function HistoryPage() {
           new_price: lastEvent.new_price,
           lowest_competitor_price: lastEvent.lowest_competitor_price ?? null,
           reason: lastEvent.reason,
-          success: true,
+          success: lastEvent.error_message ? false : true,
+          error_message: lastEvent.error_message,
           created_at: lastEvent.checked_at,
         },
         ...prev,
@@ -174,10 +175,17 @@ export default function HistoryPage() {
                   {r.lowest_competitor_price != null ? `$${Number(r.lowest_competitor_price).toFixed(2)}` : "-"}
                 </td>
                 <td className="px-5 py-3.5">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${REASON_BADGE[r.reason] || "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                    <ReasonIcon reason={r.reason} success={r.success} />
-                    {REASON_LABEL[r.reason] || r.reason}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`inline-flex items-center gap-1.5 w-fit px-3 py-1 rounded-full text-xs font-semibold border ${REASON_BADGE[r.reason] || "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      <ReasonIcon reason={r.reason} success={r.success} />
+                      {REASON_LABEL[r.reason] || r.reason}
+                    </span>
+                    {r.error_message && (
+                      <span className="text-[10px] text-red-400/80 max-w-xs leading-tight">
+                        {r.error_message}
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -73,6 +73,7 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
                 logger.error(f"Failed to push new price to Eldorado for {listing.id}: {exc}")
                 history.success = False
                 history.reason = "api_error"
+                history.error_message = str(exc)
                 # Do NOT update listing.current_price so it tries again next time
 
         listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -108,7 +109,8 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             "listing_id": listing_id_val,
             "new_price": listing_current_price,
             "lowest_competitor_price": decision.lowest_competitor_price,
-            "reason": decision.reason,
+            "reason": history.reason,
+            "error_message": history.error_message if not history.success else None,
             "checked_at": checked_at_iso,
         })
         if notification:

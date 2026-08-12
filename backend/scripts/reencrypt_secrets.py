@@ -2,6 +2,10 @@ import asyncio
 import os
 import sys
 
+# Inject a valid dummy key into the environment so app.security doesn't crash on import
+# since the real .env file hasn't been updated yet during step 4 of deployment.
+os.environ["ENCRYPTION_KEY"] = "12345678901234567890123456789012345678901234"
+
 # Ensure backend directory is in the path so we can import from app
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 

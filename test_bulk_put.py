@@ -15,7 +15,9 @@ async def run():
             "https://www.eldorado.gg/api/authentication/seller/token",
             json={"clientId": client_id, "clientSecret": client_secret}
         )
-        token = auth_resp.json().get("AccessToken")
+        data = auth_resp.json()
+        token = data.get("AccessToken") or data.get("access_token") or data.get("accessToken")
+        
         if not token:
             print("No token.")
             return

@@ -33,6 +33,12 @@ def calculate_price(
     other_prices = [p for p in competitor_prices if p != current_price]
     
     if not other_prices:
+        # We are the only seller left on the market, OR we only saw ourselves!
+        # If we only saw ourselves in a limited list (like TopUp groups), 
+        # jumping to max_price is dangerous. We should just stay put.
+        if competitor_prices and min(competitor_prices) == current_price:
+            return PricingDecision(current_price, current_price, "no_change")
+            
         # We are the only seller left on the market! Maximize profit by jumping to max_price.
         if current_price < max_price:
             return PricingDecision(max_price, None, "clamped_to_max")

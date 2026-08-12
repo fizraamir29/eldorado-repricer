@@ -149,6 +149,41 @@ class EldoradoClient:
     async def get_competitor_offers(self, game_id: str, item_id: str) -> List[Dict[str, Any]]:
         """Fetch active competing seller offers for a given game/item."""
         
+        # Check if it's a Currency Offer first
+        try:
+            my_curr = await self._request("GET", f"/api/v1/currency-management/me/offers/{item_id}")
+            if my_curr and isinstance(my_curr, dict) and "offer" in my_curr:
+                offer_data = my_curr["offer"]
+                game_id_val = offer_data.get("gameId")
+                category_val = offer_data.get("category")
+                
+                if game_id_val and category_val:
+                    groups_data = await self._request("GET", f"/api/v1/currency-management/offers/groups?gameId={game_id_val}&category={category_val}")
+                    results = groups_data.get("results", [])
+                    
+                    my_attrs = offer_data.get("attributes", [])
+                    my_attr_ids = {a.get("value", {}).get("id") for a in my_attrs if isinstance(a, dict) and a.get("value")}
+                    
+                    formatted_offers = []
+                    for r in results:
+                        o_data = r.get("offer", {})
+                        u_data = r.get("user", {})
+                        
+                        their_attrs = o_data.get("attributes", [])
+                        their_attr_ids = {a.get("value", {}).get("id") for a in their_attrs if isinstance(a, dict) and a.get("value")}
+                        
+                        if my_attr_ids and their_attr_ids and my_attr_ids != their_attr_ids:
+                            continue
+                            
+                        price_data = o_data.get("pricePerUnitInUSD") or o_data.get("pricePerUnit")
+                        amount = price_data.get("amount") if isinstance(price_data, dict) else None
+                        
+                        if amount is not None:
+                            formatted_offers.append({"price": amount, "raw": r, "user": {"username": u_data.get("username")}})
+                    return formatted_offers
+        except Exception:
+            pass
+
         # Check if it's a Predefined Offer by looking at our active predefined offers
         try:
             my_predef_offers = await self._request("GET", "/api/predefinedOffers/user/me")
@@ -220,6 +255,15 @@ class EldoradoClient:
             "currency": "USD"
         }
         
+        # Check if Currency Offer FIRST
+        try:
+            my_curr = await self._request("GET", f"/api/v1/currency-management/me/offers/{listing_id}")
+            if my_curr and isinstance(my_curr, dict) and "offer" in my_curr:
+                c_payload = {"amount": round(new_price, 2)}
+                return await self._request("PUT", f"/api/v1/currency-management/me/offers/{listing_id}/change-price", json=c_payload)
+        except Exception:
+            pass
+
         # Determine if it's predefined or flexible by checking our own active lists
         try:
             my_predef_offers = await self._request("GET", "/api/predefinedOffers/user/me")

@@ -154,29 +154,36 @@ async def sync_eldorado_listings(current_user: User = Depends(get_current_user),
 
             price = float(offer.get("price", 0))
 
-            new_listing = Listing(
-                user_id=current_user.id,
-                marketplace_listing_id=offer_id,
-                game_name=game_name,
-                title=title_val,
-                current_price=price,
-                is_active=True
-            )
-            db.add(new_listing)
-            await db.flush()
+            from sqlalchemy.exc import IntegrityError
+            
+            try:
+                new_listing = Listing(
+                    user_id=current_user.id,
+                    marketplace_listing_id=offer_id,
+                    game_name=game_name,
+                    title=title_val,
+                    current_price=price,
+                    is_active=True
+                )
+                db.add(new_listing)
+                await db.flush()
 
-            # Create rule with Min Floor = Current Price (Safe, no drop)
-            new_rule = AutomationRule(
-                listing_id=new_listing.id,
-                enabled=True, # Auto Active
-                min_price=price, # Safe floor
-                max_price=price * 1.5,
-                undercut_step=0.01,
-                check_interval_minutes=5,
-                auto_greeting_enabled=False
-            )
-            db.add(new_rule)
-            synced += 1
+                # Create rule with Min Floor = 70% of Current Price (Safe, requires user review)
+                new_rule = AutomationRule(
+                    listing_id=new_listing.id,
+                    enabled=False, # Wait for user to manually verify and activate
+                    min_price=price * 0.7, # Safe floor with headroom
+                    max_price=price * 1.5,
+                    undercut_step=0.01,
+                    check_interval_minutes=5,
+                    auto_greeting_enabled=False
+                )
+                db.add(new_rule)
+                synced += 1
+            except IntegrityError:
+                # Race condition: duplicate was inserted concurrently. Skip.
+                await db.rollback()
+                continue
 
         await db.commit()
         return {"status": "success", "synced_count": synced}
@@ -184,3 +191,45 @@ async def sync_eldorado_listings(current_user: User = Depends(get_current_user),
         err_msg = traceback.format_exc()
         raise HTTPException(status_code=500, detail=err_msg)
 
+from pydantic import BaseModel
+class RelinkRequest(BaseModel):
+    marketplace_listing_id: str
+
+@router.put("/{listing_id}/relink", response_model=ListingOut)
+async def relink_listing(listing_id: str, payload: RelinkRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Listing).where(Listing.id == listing_id, Listing.user_id == current_user.id))
+    listing = result.scalar_one_or_none()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+        
+    rule_result = await db.execute(select(AutomationRule).where(AutomationRule.listing_id == listing_id))
+    rule = rule_result.scalar_one_or_none()
+
+    from app.market_client import EldoradoClient
+    from app.security import decrypt_secret
+    from app.config import settings
+    
+    client_id = settings.eldorado_client_id or current_user.marketplace_client_id
+    client_secret = settings.eldorado_client_secret or (decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None)
+    api_key = decrypt_secret(current_user.marketplace_api_key_encrypted) if current_user.marketplace_api_key_encrypted else None
+
+    client = EldoradoClient(client_id, client_secret, api_key)
+    try:
+        await client.get_access_token()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Eldorado credentials failed validation.")
+
+    # Try to verify the new offer ID exists by fetching it
+    try:
+        offers = await client.get_competitor_offers(game_id=listing.game_name, item_id=payload.marketplace_listing_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to verify new offer ID: {e}")
+        
+    listing.marketplace_listing_id = payload.marketplace_listing_id
+    listing.status = "active"
+    if rule:
+        rule.enabled = True
+        
+    await db.commit()
+    await db.refresh(listing)
+    return listing

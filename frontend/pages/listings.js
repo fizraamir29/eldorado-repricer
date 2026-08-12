@@ -12,12 +12,14 @@ const REASON_STYLE = {
   clamped_to_max: { label: "Held at maximum ceiling", className: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
   no_change: { label: "Already lowest market price", className: "text-slate-400 bg-slate-800 border-slate-700" },
   no_competitors: { label: "No competitor offers found", className: "text-slate-400 bg-slate-800 border-slate-700" },
+  offer_missing: { label: "Offer Missing on Eldorado", className: "text-rose-400 bg-rose-500/10 border-rose-500/30" },
 };
 
 export default function ListingsPage() {
   const [listings, setListings] = useState([]);
   const [rules, setRules] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isSyncingEldorado, setIsSyncingEldorado] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [flash, setFlash] = useState({});
   const [savedSuccess, setSavedSuccess] = useState({});
@@ -51,12 +53,7 @@ export default function ListingsPage() {
   async function load() {
     setLoading(true);
     try {
-      // Auto-sync new listings from Eldorado first
-      try {
-        await api.post("/listings/sync-eldorado");
-      } catch (syncErr) {
-        console.warn("Failed to auto-sync from Eldorado", syncErr);
-      }
+      // We no longer auto-sync on load. Client must explicitly click "Sync from Eldorado".
 
       const { data } = await api.get("/listings");
       setListings(data);
@@ -72,6 +69,19 @@ export default function ListingsPage() {
       // Intercepted on 401
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function syncFromEldorado() {
+    setIsSyncingEldorado(true);
+    try {
+      const { data } = await api.post("/listings/sync-eldorado");
+      alert(`Successfully synced ${data.synced_count} new listings!`);
+      await load(); // Reload listings to show the new ones
+    } catch (e) {
+      alert(e.response?.data?.detail || "Failed to sync from Eldorado");
+    } finally {
+      setIsSyncingEldorado(false);
     }
   }
 
@@ -112,12 +122,21 @@ export default function ListingsPage() {
       setListings((prev) =>
         prev.map((l) =>
           l.id === listingId
-            ? { ...l, current_price: data.current_price, last_checked_at: data.last_checked_at }
+            ? { ...l, current_price: data.current_price, last_checked_at: data.last_checked_at, status: data.status === "synced" ? "active" : data.status }
             : l
         )
       );
     } catch (e) {
       alert(e.response?.data?.detail || "Failed to sync listing");
+    }
+  }
+
+  async function relinkListing(listingId, newOfferId) {
+    try {
+      const { data } = await api.put(`/listings/${listingId}/relink`, { marketplace_listing_id: newOfferId });
+      setListings((prev) => prev.map((l) => (l.id === listingId ? data : l)));
+    } catch (e) {
+      alert(e.response?.data?.detail || "Failed to relink listing");
     }
   }
 
@@ -173,12 +192,22 @@ export default function ListingsPage() {
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-bold text-white font-heading">Tracked Marketplace Items</h2>
-        <button
-          onClick={() => setShowAddForm((v) => !v)}
-          className={`flex items-center gap-2 bg-gradient-to-r ${accentObj.primary} text-white text-sm font-semibold px-4 py-2.5 rounded-xl ${accentObj.shadow} transition-all`}
-        >
-          <Plus size={18} /> Add New Listing
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={syncFromEldorado}
+            disabled={isSyncingEldorado}
+            className={`flex items-center gap-2 bg-[#1E293B] hover:bg-[#334155] border border-slate-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all disabled:opacity-50`}
+          >
+            <RefreshCw size={18} className={isSyncingEldorado ? "animate-spin text-emerald-400" : "text-slate-400"} /> 
+            {isSyncingEldorado ? "Syncing..." : "Sync from Eldorado"}
+          </button>
+          <button
+            onClick={() => setShowAddForm((v) => !v)}
+            className={`flex items-center gap-2 bg-gradient-to-r ${accentObj.primary} text-white text-sm font-semibold px-4 py-2.5 rounded-xl ${accentObj.shadow} transition-all`}
+          >
+            <Plus size={18} /> Add New Listing
+          </button>
+        </div>
       </div>
 
       {showAddForm && <AddListingForm onSubmit={addListing} onCancel={() => setShowAddForm(false)} />}
@@ -201,6 +230,7 @@ export default function ListingsPage() {
             onSave={(updated) => saveRule(listing.id, updated)}
             onRemove={() => removeListing(listing.id)}
             onSync={() => syncListing(listing.id)}
+            onRelink={(newOfferId) => relinkListing(listing.id, newOfferId)}
           />
         ))}
       </div>
@@ -298,12 +328,35 @@ function ListingCard({ listing, rule, flashReason, isSaved, onSave, onRemove, on
   const curP = Number(listing.current_price) || minP;
   const percent = Math.min(100, Math.max(0, ((curP - minP) / (maxP - minP || 1)) * 100));
 
+  const isMissing = listing.status === "missing";
+
   return (
     <div
       className={`bg-[#131B2A] rounded-2xl p-6 border transition-all shadow-glass ${
         flash ? "border-emerald-500/50 shadow-glow-emerald" : "border-slate-800"
-      }`}
+      } ${isMissing ? "border-rose-500/50" : ""}`}
     >
+      {isMissing && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-4 rounded-xl mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ZapOff size={20} />
+            <div>
+              <p className="font-bold text-sm">Offer Missing / Not Live on Eldorado</p>
+              <p className="text-xs opacity-80 mt-0.5">This offer could not be found. Repricing is paused until you re-link it to a valid active offer.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              const newId = prompt("Enter the new active Offer ID from Eldorado:");
+              if (newId) onRelink(newId.trim());
+            }}
+            className="bg-rose-500/20 hover:bg-rose-500/30 px-4 py-2 rounded-lg text-xs font-bold transition"
+          >
+            Re-link Offer
+          </button>
+        </div>
+      )}
+
       {/* Header Info Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800/80">
         <div>
@@ -343,17 +396,12 @@ function ListingCard({ listing, rule, flashReason, isSaved, onSave, onRemove, on
               {syncing ? "Syncing..." : "Sync Now"}
             </button>
 
-            <label className="flex items-center gap-2.5 text-sm cursor-pointer font-medium text-slate-200 bg-[#0F172A] px-3.5 py-2 rounded-xl border border-slate-700">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                onChange={(e) => update("enabled", e.target.checked)}
-                className="accent-emerald-500 w-4 h-4 rounded"
-              />
+            <div className="flex items-center gap-2.5 text-sm font-medium text-slate-200 bg-[#0F172A] px-3.5 py-2 rounded-xl border border-slate-700">
+              <span className={`w-2.5 h-2.5 rounded-full ${form.enabled ? "bg-emerald-500 shadow-glow-emerald" : "bg-slate-500"}`}></span>
               <span className={form.enabled ? "text-emerald-400 font-semibold" : "text-slate-400"}>
                 {form.enabled ? "Bot Active" : "Bot Paused"}
               </span>
-            </label>
+            </div>
 
             <button onClick={onRemove} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition" title="Remove Listing">
               <Trash2 size={18} />

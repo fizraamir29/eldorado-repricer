@@ -48,6 +48,7 @@ class ListingOut(BaseModel):
     title: str
     current_price: float
     last_checked_at: datetime | None
+    status: str
 
 
 class AutomationRuleUpdate(BaseModel):

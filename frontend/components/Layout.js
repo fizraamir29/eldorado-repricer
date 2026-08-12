@@ -19,7 +19,6 @@ const PAGE_TITLES = {
   "/listings": "Listings & Repricing Bot Controls",
   "/analytics": "Marketplace Price Analytics & Infographics",
   "/history": "Price Change Audit History",
-  "/connect": "Marketplace API Credentials",
   "/settings": "Dashboard Settings & Theme Customization",
 };
 

@@ -18,8 +18,9 @@ from jose import jwt
 
 from app.config import settings
 
-_FALLBACK_KEY = b"3CDQw1FW49zj-QvOeQRQCPWrbCZmU4k33GOHBVaow1k="
-_fernet = Fernet(settings.encryption_key.encode() if len(settings.encryption_key) == 44 else _FALLBACK_KEY)
+if not settings.encryption_key or len(settings.encryption_key) != 44:
+    raise ValueError("A valid 44-character Fernet encryption key must be provided in the ENCRYPTION_KEY environment variable.")
+_fernet = Fernet(settings.encryption_key.encode())
 
 
 def hash_password(password: str) -> str:

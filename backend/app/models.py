@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 # pyrefly: ignore [missing-import]
-from sqlalchemy import String, Numeric, Boolean, ForeignKey, DateTime, Integer, Text
+from sqlalchemy import String, Numeric, Boolean, ForeignKey, DateTime, Integer, Text, UniqueConstraint
 # pyrefly: ignore [missing-import]
 from sqlalchemy.dialects.postgresql import UUID
 # pyrefly: ignore [missing-import]
@@ -60,8 +60,13 @@ class Listing(Base):
 
     current_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'marketplace_listing_id', name='uq_listing_user_marketplace'),
+    )
 
     owner: Mapped["User"] = relationship(back_populates="listings")
     rule: Mapped["AutomationRule"] = relationship(back_populates="listing", uselist=False, cascade="all, delete-orphan")

@@ -24,6 +24,14 @@ class MarketplaceAPIError(Exception):
     pass
 
 
+class OfferMissingError(MarketplaceAPIError):
+    """Raised when the requested offer no longer exists on Eldorado."""
+    pass
+
+_GLOBAL_TOKEN_CACHE: Dict[str, Dict[str, Any]] = {}
+_GLOBAL_TOKEN_LOCK = asyncio.Lock()
+
+
 class EldoradoClient:
     def __init__(
         self,
@@ -37,10 +45,6 @@ class EldoradoClient:
         self.timeout = settings.marketplace_request_timeout_seconds
         self.max_retries = settings.marketplace_max_retries
 
-        self._access_token: Optional[str] = None
-        self._token_expires_at: float = 0.0
-        self._lock = asyncio.Lock()
-
     async def get_access_token(self) -> str:
         """
         Obtains or returns an active Bearer access token.
@@ -49,16 +53,20 @@ class EldoradoClient:
         # If running legacy single API key mode without client_id
         if not self.client_id:
             return self.client_secret or ""
+            
+        cache_key = self.client_id
 
         now = time.time()
-        if self._access_token and now < (self._token_expires_at - 60):
-            return self._access_token
+        cached = _GLOBAL_TOKEN_CACHE.get(cache_key)
+        if cached and now < (cached["expires_at"] - 60):
+            return cached["access_token"]
 
-        async with self._lock:
+        async with _GLOBAL_TOKEN_LOCK:
             # Re-check inside lock
             now = time.time()
-            if self._access_token and now < (self._token_expires_at - 60):
-                return self._access_token
+            cached = _GLOBAL_TOKEN_CACHE.get(cache_key)
+            if cached and now < (cached["expires_at"] - 60):
+                return cached["access_token"]
 
             token_url = f"{self.base_url}/api/authentication/seller/token"
             payload = {
@@ -78,10 +86,12 @@ class EldoradoClient:
                     if not access_token:
                         raise MarketplaceAPIError("No AccessToken returned from Eldorado seller token endpoint")
 
-                    self._access_token = access_token
-                    self._token_expires_at = time.time() + float(expires_in)
-                    logger.info("Successfully acquired Eldorado Seller API Access Token (expires in %ss)", expires_in)
-                    return self._access_token
+                    _GLOBAL_TOKEN_CACHE[cache_key] = {
+                        "access_token": access_token,
+                        "expires_at": time.time() + float(expires_in)
+                    }
+                    logger.info("Successfully acquired Eldorado Seller API Access Token for client %s (expires in %ss)", self.client_id[:8], expires_in)
+                    return access_token
 
             except Exception as exc:
                 logger.error("Failed to authenticate seller token with Eldorado: %s", exc)
@@ -115,8 +125,8 @@ class EldoradoClient:
 
                 if resp.status_code == 401:
                     # Token might have been invalidated, force refresh
-                    self._access_token = None
-                    self._token_expires_at = 0.0
+                    if self.client_id and self.client_id in _GLOBAL_TOKEN_CACHE:
+                        del _GLOBAL_TOKEN_CACHE[self.client_id]
                     headers = await self._headers()
 
                 resp.raise_for_status()
@@ -125,22 +135,44 @@ class EldoradoClient:
                 return resp.json()
 
             except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.TransportError) as exc:
-                last_error = exc
+                if isinstance(exc, httpx.HTTPStatusError):
+                    last_error = f"HTTP {exc.response.status_code}: {exc.response.text}"
+                else:
+                    last_error = str(exc)
                 wait = min(2 ** attempt, 30)
-                logger.warning("Marketplace API call failed (attempt %s/%s): %s", attempt, self.max_retries, exc)
-                await asyncio.sleep(wait)
+                logger.warning("Marketplace API call failed (attempt %s/%s): %s", attempt, self.max_retries, last_error)
+                if attempt < self.max_retries:
+                    await asyncio.sleep(wait)
 
         raise MarketplaceAPIError(f"Marketplace API call failed after {self.max_retries} attempts: {last_error}")
 
     async def get_competitor_offers(self, game_id: str, item_id: str) -> List[Dict[str, Any]]:
         """Fetch active competing seller offers for a given game/item."""
-        # If item_id is a UUID, it's a PredefinedOffer (e.g. TopUp, Account).
-        if item_id and len(item_id) == 36 and "-" in item_id:
+        
+        # Check if it's a Predefined Offer by looking at our active predefined offers
+        try:
+            my_predef_offers = await self._request("GET", "/api/predefinedOffersUser/me")
+            if not isinstance(my_predef_offers, list):
+                my_predef_offers = []
+        except Exception:
+            my_predef_offers = []
+            
+        is_predef = False
+        real_item_id = None
+        for offer in my_predef_offers:
+            if offer.get("id") == item_id:
+                is_predef = True
+                item_obj = offer.get("item", {})
+                real_item_id = item_obj.get("id")
+                break
+                
+        if is_predef:
+            if not real_item_id:
+                raise OfferMissingError(f"Predefined offer {item_id} found but has no associated item ID.")
             try:
-                data = await self._request("GET", f"/api/predefinedOffers/{item_id}/offers")
+                data = await self._request("GET", f"/api/predefinedOffers/{real_item_id}/offers")
                 results = data.get("results", [])
                 
-                # Format so pricing_engine can extract o["price"]
                 formatted_offers = []
                 for r in results:
                     offer_data = r.get("offer", {})
@@ -149,13 +181,15 @@ class EldoradoClient:
                     if amount is not None:
                         formatted_offers.append({"price": amount, "raw": r})
                 return formatted_offers
-            except Exception:
-                pass # If it fails, fallback to flexibleOffers
+            except Exception as e:
+                raise MarketplaceAPIError(f"Failed to fetch competitors for predefined item {real_item_id}: {e}")
                 
-        # Fallback for Flexible Offers
-        # First, we need the game UUID because Eldorado's flexibleOffers endpoint requires it.
-        # We can find it by looking up our own offer in flexibleOffersUser/me.
-        my_offers = await self._request("GET", "/api/flexibleOffersUser/me")
+        # If it's not predefined, it must be a Flexible Offer
+        # We need the game UUID because Eldorado's flexibleOffers endpoint requires it.
+        try:
+            my_offers = await self._request("GET", "/api/flexibleOffersUser/me")
+        except Exception as e:
+            raise MarketplaceAPIError(f"Failed to fetch user flexible offers: {e}")
         if not isinstance(my_offers, list):
             my_offers = []
             
@@ -168,8 +202,8 @@ class EldoradoClient:
                 break
                 
         if not real_game_id:
-            # Cannot find the UUID, returning empty means no competitors found
-            return []
+            # Cannot find the offer in our active flexible offers list. It might have been deleted or deactivated.
+            raise OfferMissingError(f"Offer {item_id} is missing from active flexible offers on Eldorado.")
 
         params = {"gameId": real_game_id, "pageSize": 50}
         data = await self._request("GET", "/api/flexibleOffers", params=params)
@@ -186,46 +220,32 @@ class EldoradoClient:
             "currency": "USD"
         }
         
-        # If it's a PredefinedOffer (UUID)
-        if listing_id and len(listing_id) == 36 and "-" in listing_id:
-            try:
-                # 1. Try to get our user ID
-                user_data = await self._request("GET", "/api/users/me")
-                my_user_id = user_data.get("id")
+        # Determine if it's predefined or flexible by checking our own active lists
+        try:
+            my_predef_offers = await self._request("GET", "/api/predefinedOffersUser/me")
+            if not isinstance(my_predef_offers, list): my_predef_offers = []
+        except Exception:
+            my_predef_offers = []
+            
+        is_predef = False
+        real_item_id = None
+        for offer in my_predef_offers:
+            if offer.get("id") == listing_id:
+                is_predef = True
+                real_item_id = offer.get("item", {}).get("id")
+                break
                 
-                # 2. Get all offers for this item
-                offers_data = await self._request("GET", f"/api/predefinedOffers/{listing_id}/offers")
-                my_offer_id = None
-                for r in offers_data.get("results", []):
-                    offer = r.get("offer", {})
-                    user = offer.get("user", {})
-                    if user.get("id") == my_user_id or user.get("username") == user_data.get("username"):
-                        my_offer_id = offer.get("id")
-                        break
-                
-                if my_offer_id:
-                    # 3. Update using the actual offer ID
-                    try:
-                        return await self._request("PUT", f"/api/predefinedOffersUser/me/{my_offer_id}/changePrice", json=payload)
-                    except Exception:
-                        return await self._request("PUT", f"/api/offers/me/{my_offer_id}", json={"price": round(new_price, 2)})
-            except Exception as e:
-                logger.warning(f"Failed to find my offer id: {e}")
-                
-            # Fallback to direct item id update
+        if is_predef:
             try:
                 return await self._request("PUT", f"/api/predefinedOffersUser/me/{listing_id}/changePrice", json=payload)
-            except Exception:
-                try:
-                    return await self._request("PUT", f"/api/offers/me/{listing_id}", json={"price": round(new_price, 2)})
-                except Exception:
-                    pass
+            except Exception as e:
+                raise MarketplaceAPIError(f"Failed to update predefined offer price: {e}")
                 
-        # Default to flexible offers
+        # If not predefined, assume flexible
         try:
             return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
-        except Exception:
-            return await self._request("PUT", f"/api/offers/me/{listing_id}", json={"price": round(new_price, 2)})
+        except Exception as e:
+            raise MarketplaceAPIError(f"Failed to update flexible offer price: {e}")
 
     async def deliver_order(self, order_id: str, delivery_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Deliver an order as a seller via official Eldorado Seller API."""

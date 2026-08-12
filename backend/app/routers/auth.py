@@ -99,21 +99,4 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.post("/marketplace-credentials", status_code=status.HTTP_204_NO_CONTENT)
-async def submit_marketplace_credentials(
-    payload: MarketplaceCredentials,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Client submits official Eldorado Seller API credentials (client_id, client_secret). Stored encrypted, never logged."""
-    if payload.client_secret:
-        current_user.marketplace_client_id = payload.client_id
-        current_user.marketplace_client_secret_encrypted = encrypt_secret(payload.client_secret)
-    elif payload.api_key:
-        current_user.marketplace_api_key_encrypted = encrypt_secret(payload.api_key)
-    else:
-        raise HTTPException(status_code=400, detail="Must provide client_id & client_secret or api_key")
-
-    db.add(current_user)
-    await db.commit()
 

@@ -38,18 +38,20 @@ def calculate_price(
             return PricingDecision(max_price, None, "clamped_to_max")
         return PricingDecision(current_price, None, "no_competitors")
 
-    lowest = min(other_prices)
+    lowest_competitor_price = min(other_prices)
     
-    # We want to be exactly `undercut_step` below the lowest competitor.
-    candidate = round(lowest - undercut_step, 2)
+    target_price = round(lowest_competitor_price - undercut_step, 2)
     
-    # If the candidate is exactly our current price, we are perfectly positioned.
-    if candidate == current_price:
-        return PricingDecision(current_price, lowest, "no_change")
+    if target_price < min_price:
+        target_price = min_price
+        reason = "clamped_to_min"
+    elif target_price > max_price:
+        target_price = max_price
+        reason = "clamped_to_max"
+    else:
+        reason = "undercut"
+        
+    if target_price == current_price:
+        reason = "no_change"
 
-    if candidate < min_price:
-        return PricingDecision(min_price, lowest, "clamped_to_min")
-    if candidate > max_price:
-        return PricingDecision(max_price, lowest, "clamped_to_max")
-
-    return PricingDecision(candidate, lowest, "undercut")
+    return PricingDecision(target_price, lowest_competitor_price, reason)

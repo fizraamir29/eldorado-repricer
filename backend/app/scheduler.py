@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
 from app.models import Listing, AutomationRule, PriceHistory, User, Notification
-from app.market_client import EldoradoClient, MarketplaceAPIError
+from app.market_client import EldoradoClient, MarketplaceAPIError, OfferMissingError
 from app.pricing_engine import calculate_price
 from app.security import decrypt_secret
 from app.realtime import manager
@@ -121,6 +121,50 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
                 "created_at": notification.created_at.isoformat(),
             })
 
+    except OfferMissingError as exc:
+        logger.warning("Offer missing on Eldorado for listing %s: %s", listing.id, exc)
+        listing.status = "missing"
+        rule.enabled = False
+        listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        session.add(listing)
+        session.add(rule)
+        session.add(PriceHistory(
+            listing_id=listing.id,
+            old_price=listing.current_price,
+            new_price=listing.current_price,
+            lowest_competitor_price=None,
+            reason="offer_missing",
+            success=False,
+            error_message=str(exc),
+        ))
+        
+        notification = Notification(
+            user_id=listing.user_id,
+            listing_id=listing.id,
+            level="error",
+            title=f"{listing.title}",
+            message="Offer is no longer active on Eldorado. Repricing has been paused.",
+        )
+        session.add(notification)
+        
+        listing_user_id = listing.user_id
+        listing_title = listing.title
+        listing_id_val = listing.id
+
+        await session.commit()
+        await session.refresh(notification)
+
+        await manager.send_to_user(listing_user_id, {
+            "type": "notification",
+            "id": notification.id,
+            "level": "error",
+            "title": notification.title,
+            "message": notification.message,
+            "listing_id": notification.listing_id,
+            "created_at": notification.created_at.isoformat(),
+        })
+
     except MarketplaceAPIError as exc:
         logger.error("Failed to process listing %s: %s", listing.id, exc)
         listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -187,7 +231,28 @@ async def run_due_listings():
             await process_listing(session, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)
 
 
+async def run_token_refresh():
+    """Proactively refresh all user tokens every 10 minutes to avoid expiry during operations."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User))
+        users = result.scalars().all()
+        for user in users:
+            client_id = settings.eldorado_client_id or user.marketplace_client_id
+            client_secret = settings.eldorado_client_secret or (decrypt_secret(user.marketplace_client_secret_encrypted) if user.marketplace_client_secret_encrypted else None)
+            api_key = decrypt_secret(user.marketplace_api_key_encrypted) if user.marketplace_api_key_encrypted else None
+            
+            if not client_id or (not client_secret and not api_key):
+                continue
+                
+            client = EldoradoClient(client_id=client_id, client_secret=client_secret, api_key=api_key)
+            try:
+                await client.get_access_token()
+            except Exception as e:
+                logger.warning(f"Background token refresh failed for user {user.id}: {e}")
+
+
 def start_scheduler():
     scheduler.add_job(run_due_listings, "interval", minutes=1, id="repricing_tick", replace_existing=True)
+    scheduler.add_job(run_token_refresh, "interval", minutes=10, id="token_refresh", replace_existing=True)
     scheduler.start()
     logger.info("Scheduler started — checking for due listings every minute.")

@@ -49,8 +49,8 @@ async def main(dry_run=False):
                     else:
                         user.marketplace_client_secret_encrypted = new_fernet.encrypt(decrypted.encode()).decode()
                     changed = True
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Failed to decrypt client_secret for user {user.id}: {e}")
                     
             # Re-encrypt api key
             if user.marketplace_api_key_encrypted:
@@ -62,8 +62,8 @@ async def main(dry_run=False):
                     else:
                         user.marketplace_api_key_encrypted = new_fernet.encrypt(decrypted.encode()).decode()
                     changed = True
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Failed to decrypt api_key for user {user.id}: {e}")
                     
             if changed:
                 session.add(user)

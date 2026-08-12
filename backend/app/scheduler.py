@@ -220,9 +220,10 @@ async def run_due_listings():
 
         for listing, rule, user in rows:
             now_time = datetime.now(timezone.utc).replace(tzinfo=None)
+            safe_interval = max(1, rule.check_interval_minutes)
             due = (
                 listing.last_checked_at is None
-                or now_time - listing.last_checked_at >= timedelta(minutes=rule.check_interval_minutes)
+                or now_time - listing.last_checked_at >= timedelta(minutes=safe_interval)
             )
             client_id = settings.eldorado_client_id or user.marketplace_client_id
             client_secret = settings.eldorado_client_secret or (decrypt_secret(user.marketplace_client_secret_encrypted) if user.marketplace_client_secret_encrypted else None)

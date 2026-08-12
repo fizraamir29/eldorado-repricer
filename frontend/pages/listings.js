@@ -405,7 +405,11 @@ function ListingCard({ listing, rule, flashReason, isSaved, onSave, onRemove, on
             </button>
 
             <button
-              onClick={() => update("enabled", !form.enabled)}
+              onClick={() => {
+                const newEnabled = !form.enabled;
+                update("enabled", newEnabled);
+                onSave({ ...form, enabled: newEnabled });
+              }}
               className="flex items-center gap-2.5 text-sm font-medium text-slate-200 bg-[#0F172A] hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-slate-700 transition"
               title="Toggle Bot Active/Paused"
             >

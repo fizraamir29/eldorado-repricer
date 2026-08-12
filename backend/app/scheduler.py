@@ -229,6 +229,8 @@ async def run_due_listings():
                 continue
 
             await process_listing(session, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)
+            # Add a small delay between processing listings to prevent hitting marketplace rate limits
+            await asyncio.sleep(2.5)
 
 
 async def run_token_refresh():
@@ -254,7 +256,7 @@ async def run_token_refresh():
 
 
 def start_scheduler():
-    scheduler.add_job(run_due_listings, "interval", seconds=3, max_instances=3, id="repricing_tick", replace_existing=True)
+    scheduler.add_job(run_due_listings, "interval", seconds=10, max_instances=2, id="repricing_tick", replace_existing=True)
     scheduler.add_job(run_token_refresh, "interval", minutes=10, id="token_refresh", replace_existing=True)
     scheduler.start()
-    logger.info("Scheduler started — checking for due listings every 3 seconds.")
+    logger.info("Scheduler started — checking for due listings every 10 seconds.")

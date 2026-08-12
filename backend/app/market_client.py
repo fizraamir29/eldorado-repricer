@@ -161,12 +161,20 @@ class EldoradoClient:
 
     async def update_listing_price(self, listing_id: str, new_price: float) -> Dict[str, Any]:
         """Push a new price to our own listing via Eldorado Seller API."""
-        # Found in Swagger: FlexibleOfferUserPrivate
         payload = {
             "price": round(new_price, 2),
             "amount": round(new_price, 2),
             "currency": "USD"
         }
+        
+        # If it's a PredefinedOffer (UUID)
+        if listing_id and len(listing_id) == 36 and "-" in listing_id:
+            try:
+                return await self._request("PUT", f"/api/predefinedOffersUser/me/{listing_id}/changePrice", json=payload)
+            except Exception:
+                pass # fallback
+                
+        # Default to flexible offers
         return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
 
     async def deliver_order(self, order_id: str, delivery_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

@@ -18,7 +18,8 @@ from jose import jwt
 
 from app.config import settings
 
-_fernet = Fernet(settings.encryption_key.encode() if len(settings.encryption_key) == 44 else Fernet.generate_key())
+_FALLBACK_KEY = b"3CDQw1FW49zj-QvOeQRQCPWrbCZmU4k33GOHBVaow1k="
+_fernet = Fernet(settings.encryption_key.encode() if len(settings.encryption_key) == 44 else _FALLBACK_KEY)
 
 
 def hash_password(password: str) -> str:

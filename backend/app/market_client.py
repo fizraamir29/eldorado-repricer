@@ -275,7 +275,12 @@ class EldoradoClient:
         try:
             my_curr = await self._request("GET", f"/api/v1/currency-management/me/offers/{listing_id}")
             if my_curr and isinstance(my_curr, dict) and "offer" in my_curr:
-                c_payload = {"amount": round(new_price, 2)}
+                c_payload = {
+                    "pricePerUnitInUSD": {
+                        "amount": round(new_price, 2),
+                        "currency": "USD"
+                    }
+                }
                 return await self._request("PUT", f"/api/v1/currency-management/me/offers/{listing_id}/change-price", json=c_payload)
         except Exception:
             pass

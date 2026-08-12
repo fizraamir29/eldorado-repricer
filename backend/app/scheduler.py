@@ -249,10 +249,12 @@ async def run_token_refresh():
                 await client.get_access_token()
             except Exception as e:
                 logger.warning(f"Background token refresh failed for user {user.id}: {e}")
+            
+        await asyncio.sleep(2)
 
 
 def start_scheduler():
-    scheduler.add_job(run_due_listings, "interval", minutes=1, id="repricing_tick", replace_existing=True)
+    scheduler.add_job(run_due_listings, "interval", seconds=3, max_instances=3, id="repricing_tick", replace_existing=True)
     scheduler.add_job(run_token_refresh, "interval", minutes=10, id="token_refresh", replace_existing=True)
     scheduler.start()
-    logger.info("Scheduler started — checking for due listings every minute.")
+    logger.info("Scheduler started — checking for due listings every 3 seconds.")

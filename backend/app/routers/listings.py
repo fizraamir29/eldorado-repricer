@@ -73,15 +73,20 @@ async def sync_listing(listing_id: str, current_user: User = Depends(get_current
     client_secret = settings.eldorado_client_secret or (decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None)
     api_key = decrypt_secret(current_user.marketplace_api_key_encrypted) if current_user.marketplace_api_key_encrypted else None
 
-    await process_listing(db, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)
-    await db.refresh(listing)
+    import traceback
+    try:
+        await process_listing(db, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)
+        await db.refresh(listing)
 
-    return {
-        "status": "synced",
-        "listing_id": listing.id,
-        "current_price": float(listing.current_price),
-        "last_checked_at": listing.last_checked_at.isoformat() if listing.last_checked_at else None,
-    }
+        return {
+            "status": "synced",
+            "listing_id": listing.id,
+            "current_price": float(listing.current_price),
+            "last_checked_at": listing.last_checked_at.isoformat() if listing.last_checked_at else None,
+        }
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=err_msg)
 
 
 @router.post("/sync-eldorado")
@@ -94,83 +99,88 @@ async def sync_eldorado_listings(current_user: User = Depends(get_current_user),
     client_secret = settings.eldorado_client_secret or (decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None)
     api_key = decrypt_secret(current_user.marketplace_api_key_encrypted) if current_user.marketplace_api_key_encrypted else None
 
-    if not client_id or not client_secret:
-        raise HTTPException(status_code=400, detail="Eldorado credentials not configured")
-
-    client = EldoradoClient(client_id, client_secret, api_key)
+    import traceback
     try:
-        await client._authenticate()
-        predef_offers = await client._request('GET', '/api/predefinedOffersUser/me')
-    except Exception as e:
-        predef_offers = []
+        if not client_id or not client_secret:
+            raise HTTPException(status_code=400, detail="Eldorado credentials not configured")
 
-    try:
-        flex_offers = await client._request('GET', '/api/flexibleOffersUser/me')
-    except Exception as e:
-        flex_offers = []
+        client = EldoradoClient(client_id, client_secret, api_key)
+        try:
+            await client.get_access_token()
+            predef_offers = await client._request('GET', '/api/predefinedOffersUser/me')
+        except Exception as e:
+            predef_offers = []
 
-    if not isinstance(predef_offers, list):
-        predef_offers = []
-    if not isinstance(flex_offers, list):
-        flex_offers = []
+        try:
+            flex_offers = await client._request('GET', '/api/flexibleOffersUser/me')
+        except Exception as e:
+            flex_offers = []
 
-    # Combine both types of offers
-    all_offers = predef_offers + flex_offers
+        if not isinstance(predef_offers, list):
+            predef_offers = []
+        if not isinstance(flex_offers, list):
+            flex_offers = []
 
-    synced = 0
-    for offer in all_offers:
-        offer_id = offer.get("id")
-        if not offer_id:
-            continue
+        # Combine both types of offers
+        all_offers = predef_offers + flex_offers
+
+        synced = 0
+        for offer in all_offers:
+            offer_id = offer.get("id")
+            if not offer_id:
+                continue
+                
+            # Check if already tracking
+            existing_res = await db.execute(select(Listing).where(Listing.marketplace_listing_id == offer_id, Listing.user_id == current_user.id))
+            if existing_res.scalar_one_or_none():
+                continue
+
+            # Extract game name safely
+            game_name = "Unknown Game"
+            if isinstance(offer.get("game"), dict):
+                game_name = offer["game"].get("name", game_name)
+            elif isinstance(offer.get("item"), dict) and isinstance(offer["item"].get("game"), dict):
+                 game_name = offer["item"]["game"].get("name", game_name)
             
-        # Check if already tracking
-        existing_res = await db.execute(select(Listing).where(Listing.marketplace_listing_id == offer_id, Listing.user_id == current_user.id))
-        if existing_res.scalar_one_or_none():
-            continue
+            # Determine title
+            title_val = offer.get("offerTitle") or offer.get("title")
+            if not title_val:
+                amount = offer.get("amount", "")
+                curr = offer.get("currency", "Units")
+                title_val = f"{amount} {curr}".strip()
+                
+            if not title_val:
+                title_val = f"Offer {offer_id[:8]}"
 
-        # Extract game name safely
-        game_name = "Unknown Game"
-        if isinstance(offer.get("game"), dict):
-            game_name = offer["game"].get("name", game_name)
-        elif isinstance(offer.get("item"), dict) and isinstance(offer["item"].get("game"), dict):
-             game_name = offer["item"]["game"].get("name", game_name)
-        
-        # Determine title
-        title_val = offer.get("offerTitle") or offer.get("title")
-        if not title_val:
-            amount = offer.get("amount", "")
-            curr = offer.get("currency", "Units")
-            title_val = f"{amount} {curr}".strip()
-            
-        if not title_val:
-            title_val = f"Offer {offer_id[:8]}"
+            price = float(offer.get("price", 0))
 
-        price = float(offer.get("price", 0))
+            new_listing = Listing(
+                user_id=current_user.id,
+                marketplace_listing_id=offer_id,
+                game_name=game_name,
+                title=title_val,
+                current_price=price,
+                is_active=True
+            )
+            db.add(new_listing)
+            await db.flush()
 
-        new_listing = Listing(
-            user_id=current_user.id,
-            marketplace_listing_id=offer_id,
-            game_name=game_name,
-            title=title_val,
-            current_price=price,
-            is_active=True
-        )
-        db.add(new_listing)
-        await db.flush()
+            # Create rule with Min Floor = Current Price (Safe, no drop)
+            new_rule = AutomationRule(
+                listing_id=new_listing.id,
+                enabled=True, # Auto Active
+                min_price=price, # Safe floor
+                max_price=price * 1.5,
+                undercut_step=0.01,
+                check_interval_minutes=5,
+                auto_greeting_enabled=False
+            )
+            db.add(new_rule)
+            synced += 1
 
-        # Create rule with Min Floor = Current Price (Safe, no drop)
-        new_rule = AutomationRule(
-            listing_id=new_listing.id,
-            enabled=True, # Auto Active
-            min_price=price, # Safe floor
-            max_price=price * 1.5,
-            undercut_step=0.01,
-            check_interval_minutes=5,
-            auto_greeting_enabled=False
-        )
-        db.add(new_rule)
-        synced += 1
-
-    await db.commit()
-    return {"status": "success", "synced_count": synced}
+        await db.commit()
+        return {"status": "success", "synced_count": synced}
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=err_msg)
 

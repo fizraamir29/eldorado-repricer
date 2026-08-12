@@ -111,6 +111,39 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Section 0.5: Chrome Extension Setup */}
+        <div className="bg-[#131B2A] border border-emerald-500/30 rounded-2xl p-6 shadow-glass space-y-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center`}>
+              <Zap size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-white font-heading">Chrome Extension Token</h3>
+              <p className="text-xs text-slate-400">Use this token to connect your local Chrome Extension to this Dashboard</p>
+            </div>
+          </div>
+          
+          <div className="bg-[#0F172A] border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+            <div className="text-sm font-mono text-slate-300 truncate mr-4">
+              {typeof window !== 'undefined' ? localStorage.getItem("token") || "No token found" : ""}
+            </div>
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  const token = localStorage.getItem("token");
+                  if (token) {
+                    navigator.clipboard.writeText(token);
+                    alert("Token copied to clipboard!");
+                  }
+                }
+              }}
+              className="whitespace-nowrap px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors border border-slate-700"
+            >
+              Copy Token
+            </button>
+          </div>
+        </div>
+
         {/* Section 1: Appearance & Theme Customization */}
         <div className="bg-[#131B2A] border border-slate-800 rounded-2xl p-6 shadow-glass space-y-6">
           <div className="flex items-center justify-between">

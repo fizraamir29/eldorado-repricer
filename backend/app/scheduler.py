@@ -111,6 +111,8 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
 
     except MarketplaceAPIError as exc:
         logger.error("Failed to process listing %s: %s", listing.id, exc)
+        listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        session.add(listing)
         session.add(PriceHistory(
             listing_id=listing.id,
             old_price=listing.current_price,

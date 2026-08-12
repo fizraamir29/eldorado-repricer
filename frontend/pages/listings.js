@@ -404,12 +404,16 @@ function ListingCard({ listing, rule, flashReason, isSaved, onSave, onRemove, on
               {syncing ? "Syncing..." : "Sync Now"}
             </button>
 
-            <div className="flex items-center gap-2.5 text-sm font-medium text-slate-200 bg-[#0F172A] px-3.5 py-2 rounded-xl border border-slate-700">
+            <button
+              onClick={() => update("enabled", !form.enabled)}
+              className="flex items-center gap-2.5 text-sm font-medium text-slate-200 bg-[#0F172A] hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-slate-700 transition"
+              title="Toggle Bot Active/Paused"
+            >
               <span className={`w-2.5 h-2.5 rounded-full ${form.enabled ? "bg-emerald-500 shadow-glow-emerald" : "bg-slate-500"}`}></span>
               <span className={form.enabled ? "text-emerald-400 font-semibold" : "text-slate-400"}>
                 {form.enabled ? "Bot Active" : "Bot Paused"}
               </span>
-            </div>
+            </button>
 
             <button onClick={onRemove} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition" title="Remove Listing">
               <Trash2 size={18} />

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import httpx
+import json
 from dotenv import load_dotenv
 
 async def run():
@@ -49,14 +50,25 @@ async def run():
             return
         
         offer_data = resp.json()
-        print("GET Offer keys:", offer_data.keys())
+        offer = offer_data.get("offer", {})
+        print("Offer structure:")
+        print(json.dumps(offer, indent=2))
         
-        # Change the price slightly to test
-        offer_data["pricePerUnit"]["amount"] = 31.98
+        # We need to change the price. Let's see what keys are there.
+        if "pricePerUnit" in offer:
+            offer["pricePerUnit"]["amount"] = 31.98
+        elif "price" in offer:
+            offer["price"] = 31.98
+        else:
+            print("Could not find price key in offer!")
+            return
+            
+        # The main endpoint is probably expecting a 'details' array if it said "Parameter 'details'"?
+        # Let's try sending just the offer back.
+        put_payload = offer
         
-        # PUT it back
-        print(f"PUT {url}")
-        put_resp = await client.put(url, json=offer_data)
+        print(f"\nPUT {url}")
+        put_resp = await client.put(url, json=put_payload)
         print(f"Status: {put_resp.status_code}")
         print(f"Response: {put_resp.text}")
 

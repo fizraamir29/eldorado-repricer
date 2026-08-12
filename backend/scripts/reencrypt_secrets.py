@@ -16,7 +16,6 @@ from app.database import AsyncSessionLocal
 from app.models import User
 
 _FALLBACK_KEY = b"3CDQw1FW49zj-QvOeQRQCPWrbCZmU4k33GOHBVaow1k="
-_DOCKER_FALLBACK_KEY = b"Y29uZmlndXJtdGlvbl9zZWNyZXRfa2V5X2Zvcl9mZXJuZXRf"
 
 async def main(dry_run=False):
     new_key = os.environ.get("NEW_ENCRYPTION_KEY")
@@ -24,8 +23,7 @@ async def main(dry_run=False):
         print("ERROR: NEW_ENCRYPTION_KEY environment variable is not set correctly or is not 44 chars.")
         return
 
-    old_fernet_1 = Fernet(_FALLBACK_KEY)
-    old_fernet_2 = Fernet(_DOCKER_FALLBACK_KEY)
+    old_fernet = Fernet(_FALLBACK_KEY)
     new_fernet = Fernet(new_key.encode())
     
     if dry_run:
@@ -43,39 +41,29 @@ async def main(dry_run=False):
             
             # Re-encrypt client secret
             if user.marketplace_client_secret_encrypted:
-                decrypted = None
-                for old_f in (old_fernet_1, old_fernet_2):
-                    try:
-                        decrypted = old_f.decrypt(user.marketplace_client_secret_encrypted.encode()).decode()
-                        break
-                    except Exception:
-                        continue
-                
-                if decrypted:
+                try:
+                    decrypted = old_fernet.decrypt(user.marketplace_client_secret_encrypted.encode()).decode()
                     if dry_run:
                         masked = decrypted[:3] + "***" + decrypted[-3:] if len(decrypted) > 6 else "***"
                         print(f"User {user.id} Client Secret: {masked}")
                     else:
                         user.marketplace_client_secret_encrypted = new_fernet.encrypt(decrypted.encode()).decode()
                     changed = True
+                except Exception:
+                    pass
                     
             # Re-encrypt api key
             if user.marketplace_api_key_encrypted:
-                decrypted = None
-                for old_f in (old_fernet_1, old_fernet_2):
-                    try:
-                        decrypted = old_f.decrypt(user.marketplace_api_key_encrypted.encode()).decode()
-                        break
-                    except Exception:
-                        continue
-                
-                if decrypted:
+                try:
+                    decrypted = old_fernet.decrypt(user.marketplace_api_key_encrypted.encode()).decode()
                     if dry_run:
                         masked = decrypted[:3] + "***" + decrypted[-3:] if len(decrypted) > 6 else "***"
                         print(f"User {user.id} API Key: {masked}")
                     else:
                         user.marketplace_api_key_encrypted = new_fernet.encrypt(decrypted.encode()).decode()
                     changed = True
+                except Exception:
+                    pass
                     
             if changed:
                 session.add(user)

@@ -28,10 +28,8 @@ async def run():
         token = data.get("AccessToken") or data.get("access_token") or data.get("accessToken")
         
         if not token:
-            print(f"No token in response. Keys found: {list(data.keys())}")
-            print(data)
+            print("No token in response")
             return
-        print("Auth success!")
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -42,34 +40,26 @@ async def run():
     url = f"https://www.eldorado.gg/api/v1/currency-management/me/offers/{offer_id}"
     
     async with httpx.AsyncClient(headers=headers) as client:
-        print(f"GET {url}")
-        resp = await client.get(url)
-        print(f"Status: {resp.status_code}")
-        if resp.status_code != 200:
-            print(resp.text)
-            return
+        # Try different payload structures based on details.Pricing error
+        payloads = [
+            # Test 1: Capital Pricing
+            {"details": {"Pricing": {"pricePerUnit": {"amount": 31.98, "currency": "USD"}}}},
+            # Test 2: Lowercase pricing
+            {"details": {"pricing": {"pricePerUnit": {"amount": 31.98, "currency": "USD"}}}},
+            # Test 3: Capital Pricing with amount directly
+            {"details": {"Pricing": {"amount": 31.98, "currency": "USD"}}},
+            # Test 4: Pricing with price directly
+            {"details": {"Pricing": {"price": 31.98}}},
+        ]
         
-        offer_data = resp.json()
-        offer = offer_data.get("offer", {})
-        
-        # Change price
-        if "pricePerUnit" in offer:
-            offer["pricePerUnit"]["amount"] = 31.98
-            offer["pricePerUnit"]["currency"] = "USD"
-        
-        # Try PUT with details
-        put_payload = {"details": offer}
-        print(f"\nPUT {url}")
-        print("Payload:", json.dumps(put_payload)[:200] + "...")
-        put_resp = await client.put(url, json=put_payload)
-        print(f"Status: {put_resp.status_code}")
-        print(f"Response: {put_resp.text}")
-        
-        if put_resp.status_code != 200:
-            # Try without details just in case
-            print("\nTrying raw offer without details wrapper...")
-            put_resp2 = await client.put(url, json=offer)
-            print(f"Status: {put_resp2.status_code}")
-            print(f"Response: {put_resp2.text}")
+        for i, payload in enumerate(payloads):
+            print(f"\n--- Testing Payload {i+1} ---")
+            print("Payload:", json.dumps(payload))
+            put_resp = await client.put(url, json=payload)
+            print(f"Status: {put_resp.status_code}")
+            print(f"Response: {put_resp.text}")
+            if put_resp.status_code == 200:
+                print("SUCCESS!")
+                break
 
 asyncio.run(run())

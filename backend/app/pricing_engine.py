@@ -29,8 +29,9 @@ def calculate_price(
     if not competitor_prices:
         return PricingDecision(current_price, None, "no_competitors")
 
-    # Filter out our own current price so we don't undercut ourselves.
-    other_prices = [p for p in competitor_prices if p != current_price]
+    # competitor_prices ONLY contains ACTUAL competitors now, 
+    # because market_client.py filters out our own offer id.
+    other_prices = competitor_prices
     
     if not other_prices:
         # We are the only seller left on the market, OR we only saw ourselves!

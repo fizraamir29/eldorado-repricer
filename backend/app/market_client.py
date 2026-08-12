@@ -174,6 +174,10 @@ class EldoradoClient:
                         their_attrs = o_data.get("attributes", [])
                         their_attr_ids = {a.get("value", {}).get("id") for a in their_attrs if isinstance(a, dict) and a.get("value")}
                         
+                        # Exclude our own offer
+                        if o_data.get("id") == item_id:
+                            continue
+
                         if my_attr_ids and their_attr_ids and my_attr_ids != their_attr_ids:
                             continue
                             
@@ -217,6 +221,10 @@ class EldoradoClient:
                 formatted_offers = []
                 for r in results:
                     offer_data = r.get("offer", {})
+                    # Exclude our own offer
+                    if offer_data.get("id") == real_item_id or offer_data.get("id") == item_id:
+                        continue
+                        
                     price_data = offer_data.get("pricePerUnit", {})
                     amount = price_data.get("amount")
                     if amount is not None:
@@ -250,8 +258,10 @@ class EldoradoClient:
         data = await self._request("GET", "/api/flexibleOffers", params=params)
         
         if isinstance(data, list):
-            return data
-        return data.get("results", [])
+            return [r for r in data if r.get("id") != item_id]
+            
+        results = data.get("results", [])
+        return [r for r in results if r.get("id") != item_id]
 
     async def update_listing_price(self, listing_id: str, new_price: float) -> Dict[str, Any]:
         """Push a new price to our own listing via Eldorado Seller API."""

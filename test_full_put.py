@@ -51,25 +51,25 @@ async def run():
         
         offer_data = resp.json()
         offer = offer_data.get("offer", {})
-        print("Offer structure:")
-        print(json.dumps(offer, indent=2))
         
-        # We need to change the price. Let's see what keys are there.
+        # Change price
         if "pricePerUnit" in offer:
             offer["pricePerUnit"]["amount"] = 31.98
-        elif "price" in offer:
-            offer["price"] = 31.98
-        else:
-            print("Could not find price key in offer!")
-            return
-            
-        # The main endpoint is probably expecting a 'details' array if it said "Parameter 'details'"?
-        # Let's try sending just the offer back.
-        put_payload = offer
+            offer["pricePerUnit"]["currency"] = "USD"
         
+        # Try PUT with details
+        put_payload = {"details": offer}
         print(f"\nPUT {url}")
+        print("Payload:", json.dumps(put_payload)[:200] + "...")
         put_resp = await client.put(url, json=put_payload)
         print(f"Status: {put_resp.status_code}")
         print(f"Response: {put_resp.text}")
+        
+        if put_resp.status_code != 200:
+            # Try without details just in case
+            print("\nTrying raw offer without details wrapper...")
+            put_resp2 = await client.put(url, json=offer)
+            print(f"Status: {put_resp2.status_code}")
+            print(f"Response: {put_resp2.text}")
 
 asyncio.run(run())

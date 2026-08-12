@@ -65,9 +65,15 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             success=True,
         )
 
-        if decision.reason in ("undercut", "clamped_to_min", "clamped_to_max"):
-            await client.update_listing_price(listing.marketplace_listing_id, decision.new_price)
-            listing.current_price = decision.new_price
+        if price_changed:
+            try:
+                await client.update_listing_price(listing.marketplace_listing_id, decision.new_price)
+                listing.current_price = decision.new_price
+            except Exception as exc:
+                logger.error(f"Failed to push new price to Eldorado for {listing.id}: {exc}")
+                history.success = False
+                history.reason = "api_error"
+                # Do NOT update listing.current_price so it tries again next time
 
         listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         session.add(history)

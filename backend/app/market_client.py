@@ -170,9 +170,37 @@ class EldoradoClient:
         # If it's a PredefinedOffer (UUID)
         if listing_id and len(listing_id) == 36 and "-" in listing_id:
             try:
+                # 1. Try to get our user ID
+                user_data = await self._request("GET", "/api/users/me")
+                my_user_id = user_data.get("id")
+                
+                # 2. Get all offers for this item
+                offers_data = await self._request("GET", f"/api/predefinedOffers/{listing_id}/offers")
+                my_offer_id = None
+                for r in offers_data.get("results", []):
+                    offer = r.get("offer", {})
+                    user = offer.get("user", {})
+                    if user.get("id") == my_user_id or user.get("username") == user_data.get("username"):
+                        my_offer_id = offer.get("id")
+                        break
+                
+                if my_offer_id:
+                    # 3. Update using the actual offer ID
+                    try:
+                        return await self._request("PUT", f"/api/predefinedOffersUser/me/{my_offer_id}/changePrice", json=payload)
+                    except Exception:
+                        return await self._request("PUT", f"/api/offers/me/{my_offer_id}", json={"price": round(new_price, 2)})
+            except Exception as e:
+                logger.warning(f"Failed to find my offer id: {e}")
+                
+            # Fallback to direct item id update
+            try:
                 return await self._request("PUT", f"/api/predefinedOffersUser/me/{listing_id}/changePrice", json=payload)
             except Exception:
-                pass # fallback
+                try:
+                    return await self._request("PUT", f"/api/offers/me/{listing_id}", json={"price": round(new_price, 2)})
+                except Exception:
+                    pass
                 
         # Default to flexible offers
         return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)

@@ -93,20 +93,25 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             )
             session.add(notification)
 
+        listing_user_id = listing.user_id
+        listing_id_val = listing.id
+        listing_current_price = float(listing.current_price)
+        checked_at_iso = listing.last_checked_at.isoformat() if listing.last_checked_at else ""
+
         await session.commit()
         if notification:
             await session.refresh(notification)
 
         # Push live update to any open dashboard tab for this user.
-        await manager.send_to_user(listing.user_id, {
+        await manager.send_to_user(listing_user_id, {
             "type": "price_update",
-            "listing_id": listing.id,
-            "new_price": float(listing.current_price),
+            "listing_id": listing_id_val,
+            "new_price": listing_current_price,
             "reason": decision.reason,
-            "checked_at": listing.last_checked_at.isoformat() if listing.last_checked_at else "",
+            "checked_at": checked_at_iso,
         })
         if notification:
-            await manager.send_to_user(listing.user_id, {
+            await manager.send_to_user(listing_user_id, {
                 "type": "notification",
                 "id": notification.id,
                 "level": notification.level,
@@ -137,10 +142,14 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             message=f"Couldn't reach the marketplace API this cycle: {exc}",
         )
         session.add(notification)
+        listing_user_id = listing.user_id
+        listing_title = listing.title
+        listing_id_val = listing.id
+
         await session.commit()
         await session.refresh(notification)
 
-        await manager.send_to_user(listing.user_id, {
+        await manager.send_to_user(listing_user_id, {
             "type": "notification",
             "id": notification.id,
             "level": "error",

@@ -153,8 +153,27 @@ class EldoradoClient:
                 pass # If it fails, fallback to flexibleOffers
                 
         # Fallback for Flexible Offers
-        params = {"gameId": game_id, "pageSize": 50}
+        # First, we need the game UUID because Eldorado's flexibleOffers endpoint requires it.
+        # We can find it by looking up our own offer in flexibleOffersUser/me.
+        my_offers = await self._request("GET", "/api/flexibleOffersUser/me")
+        if not isinstance(my_offers, list):
+            my_offers = []
+            
+        real_game_id = None
+        for my_offer in my_offers:
+            if my_offer.get("id") == item_id:
+                game_obj = my_offer.get("game")
+                if isinstance(game_obj, dict):
+                    real_game_id = game_obj.get("id")
+                break
+                
+        if not real_game_id:
+            # Cannot find the UUID, returning empty means no competitors found
+            return []
+
+        params = {"gameId": real_game_id, "pageSize": 50}
         data = await self._request("GET", "/api/flexibleOffers", params=params)
+        
         if isinstance(data, list):
             return data
         return data.get("results", [])
@@ -203,7 +222,10 @@ class EldoradoClient:
                     pass
                 
         # Default to flexible offers
-        return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
+        try:
+            return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
+        except Exception:
+            return await self._request("PUT", f"/api/offers/me/{listing_id}", json={"price": round(new_price, 2)})
 
     async def deliver_order(self, order_id: str, delivery_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Deliver an order as a seller via official Eldorado Seller API."""

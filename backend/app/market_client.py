@@ -118,6 +118,7 @@ class EldoradoClient:
                     resp = await client.request(method, url, headers=headers, **kwargs)
 
                 if resp.status_code == 429:
+                    last_error = "HTTP 429: Rate limited by Eldorado API (Quota Exceeded)"
                     wait = 2 ** attempt
                     logger.warning("Rate limited by Eldorado API (429), waiting %ss before retry...", wait)
                     await asyncio.sleep(wait)

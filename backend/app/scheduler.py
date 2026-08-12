@@ -169,7 +169,18 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
         })
 
     except MarketplaceAPIError as exc:
+        error_msg = str(exc)
         logger.error("Failed to process listing %s: %s", listing.id, exc)
+        
+        reason = "error"
+        message = f"Couldn't reach the marketplace API this cycle: {exc}"
+        
+        if "429" in error_msg:
+            rule.is_active = False
+            session.add(rule)
+            reason = "api_error_429"
+            message = "Bot automatically paused due to Eldorado API Rate Limit (429 Quota Exceeded). Please wait before re-enabling."
+            
         listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         session.add(listing)
         session.add(PriceHistory(
@@ -177,16 +188,16 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             old_price=listing.current_price,
             new_price=listing.current_price,
             lowest_competitor_price=None,
-            reason="error",
+            reason=reason,
             success=False,
-            error_message=str(exc),
+            error_message=error_msg,
         ))
         notification = Notification(
             user_id=listing.user_id,
             listing_id=listing.id,
             level="error",
             title=f"{listing.title}",
-            message=f"Couldn't reach the marketplace API this cycle: {exc}",
+            message=message,
         )
         session.add(notification)
         listing_user_id = listing.user_id

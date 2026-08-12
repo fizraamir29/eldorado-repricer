@@ -134,14 +134,26 @@ class EldoradoClient:
 
     async def get_competitor_offers(self, game_id: str, item_id: str) -> List[Dict[str, Any]]:
         """Fetch active competing seller offers for a given game/item."""
-        # Found in Swagger: FlexibleOfferPublic
-        # We pass gameId to filter
+        # If item_id is a UUID, it's a PredefinedOffer (e.g. TopUp, Account).
+        if item_id and len(item_id) == 36 and "-" in item_id:
+            try:
+                data = await self._request("GET", f"/api/predefinedOffers/{item_id}/offers")
+                results = data.get("results", [])
+                
+                # Format so pricing_engine can extract o["price"]
+                formatted_offers = []
+                for r in results:
+                    offer_data = r.get("offer", {})
+                    price_data = offer_data.get("pricePerUnit", {})
+                    amount = price_data.get("amount")
+                    if amount is not None:
+                        formatted_offers.append({"price": amount, "raw": r})
+                return formatted_offers
+            except Exception:
+                pass # If it fails, fallback to flexibleOffers
+                
+        # Fallback for Flexible Offers
         params = {"gameId": game_id, "pageSize": 50}
-        # In case the frontend passes the direct ID to search, we can use it.
-        if item_id and item_id != "default":
-            # If item_id looks like a GUID, we could query it directly, but searching the market is safer.
-            pass
-        
         data = await self._request("GET", "/api/flexibleOffers", params=params)
         if isinstance(data, list):
             return data

@@ -153,6 +153,8 @@ class EldoradoClient:
         try:
             my_curr = await self._request("GET", f"/api/v1/currency-management/me/offers/{item_id}")
             if my_curr and isinstance(my_curr, dict) and "offer" in my_curr:
+                logger.info(f"Offer {item_id} is a Currency Offer!")
+
                 offer_data = my_curr["offer"]
                 game_id_val = offer_data.get("gameId")
                 category_val = offer_data.get("category")
@@ -180,8 +182,12 @@ class EldoradoClient:
                         
                         if amount is not None:
                             formatted_offers.append({"price": amount, "raw": r, "user": {"username": u_data.get("username")}})
+                    logger.info(f"Currency offers found: {len(formatted_offers)}")
                     return formatted_offers
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed during Currency Offer check for {item_id}: {repr(e)}")
+            # Even if it failed, it might be a currency offer. We shouldn't blindly fall through 
+            # if we know it's a currency offer, but if it 404s, it means it's not a currency offer.
             pass
 
         # Check if it's a Predefined Offer by looking at our active predefined offers

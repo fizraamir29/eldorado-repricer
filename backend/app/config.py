@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # once you know the real scheme — no code change needed.
     #   header name examples: "Authorization" or "X-API-Key"
     #   scheme examples: "Bearer" (goes before the key) or "" (raw key, no scheme prefix)
+    eldorado_client_id: str = ""
+    eldorado_client_secret: str = ""
     marketplace_auth_header_name: str = "Authorization"
     marketplace_auth_scheme: str = "Bearer"
 

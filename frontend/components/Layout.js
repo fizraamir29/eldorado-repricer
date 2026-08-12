@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: "/listings", label: "Listings & Bot", icon: LayoutGrid },
   { href: "/analytics", label: "Market Analytics", icon: BarChart3 },
   { href: "/history", label: "Audit History", icon: History },
-  { href: "/connect", label: "Connect API", icon: Link2 },
+
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

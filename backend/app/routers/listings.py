@@ -67,9 +67,10 @@ async def sync_listing(listing_id: str, current_user: User = Depends(get_current
 
     from app.scheduler import process_listing
     from app.security import decrypt_secret
+    from app.config import settings
 
-    client_id = current_user.marketplace_client_id
-    client_secret = decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None
+    client_id = settings.eldorado_client_id or current_user.marketplace_client_id
+    client_secret = settings.eldorado_client_secret or (decrypt_secret(current_user.marketplace_client_secret_encrypted) if current_user.marketplace_client_secret_encrypted else None)
     api_key = decrypt_secret(current_user.marketplace_api_key_encrypted) if current_user.marketplace_api_key_encrypted else None
 
     await process_listing(db, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)

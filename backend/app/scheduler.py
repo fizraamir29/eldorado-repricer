@@ -20,6 +20,7 @@ from app.market_client import EldoradoClient, MarketplaceAPIError
 from app.pricing_engine import calculate_price
 from app.security import decrypt_secret
 from app.realtime import manager
+from app.config import settings
 
 logger = logging.getLogger("scheduler")
 scheduler = AsyncIOScheduler()
@@ -161,13 +162,12 @@ async def run_due_listings():
                 listing.last_checked_at is None
                 or now_time - listing.last_checked_at >= timedelta(minutes=rule.check_interval_minutes)
             )
-            has_credentials = bool(user.marketplace_client_secret_encrypted or user.marketplace_api_key_encrypted)
-            if not due or not has_credentials:
-                continue
-
-            client_id = user.marketplace_client_id
-            client_secret = decrypt_secret(user.marketplace_client_secret_encrypted) if user.marketplace_client_secret_encrypted else None
+            client_id = settings.eldorado_client_id or user.marketplace_client_id
+            client_secret = settings.eldorado_client_secret or (decrypt_secret(user.marketplace_client_secret_encrypted) if user.marketplace_client_secret_encrypted else None)
             api_key = decrypt_secret(user.marketplace_api_key_encrypted) if user.marketplace_api_key_encrypted else None
+
+            if not client_id or (not client_secret and not api_key):
+                continue
 
             await process_listing(session, listing, rule, client_id=client_id, client_secret=client_secret, api_key=api_key)
 

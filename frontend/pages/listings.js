@@ -94,7 +94,9 @@ export default function ListingsPage() {
         setSavedSuccess((prev) => ({ ...prev, [listingId]: false }));
       }, 3000);
     } catch (e) {
-      alert(e.response?.data?.detail || "Failed to update rule settings");
+      const detail = e.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail[0]?.msg : detail;
+      alert(msg || "Failed to update rule settings");
     }
   }
 
@@ -112,7 +114,9 @@ export default function ListingsPage() {
       setRules((prev) => ({ ...prev, [data.id]: r.data }));
       setShowAddForm(false);
     } catch (e) {
-      alert(e.response?.data?.detail || "Failed to add listing");
+      const detail = e.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail[0]?.msg : detail;
+      alert(msg || "Failed to add listing");
     }
   }
 
@@ -127,7 +131,9 @@ export default function ListingsPage() {
         )
       );
     } catch (e) {
-      alert(e.response?.data?.detail || "Failed to sync listing");
+      const detail = e.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail[0]?.msg : detail;
+      alert(msg || "Failed to sync listing");
     }
   }
 
@@ -136,7 +142,9 @@ export default function ListingsPage() {
       const { data } = await api.put(`/listings/${listingId}/relink`, { marketplace_listing_id: newOfferId });
       setListings((prev) => prev.map((l) => (l.id === listingId ? data : l)));
     } catch (e) {
-      alert(e.response?.data?.detail || "Failed to relink listing");
+      const detail = e.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail[0]?.msg : detail;
+      alert(msg || "Failed to relink listing");
     }
   }
 

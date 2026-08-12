@@ -55,8 +55,8 @@ class AutomationRuleUpdate(BaseModel):
     enabled: bool
     min_price: float = Field(gt=0)
     max_price: float = Field(gt=0)
-    undercut_step: float = Field(default=0.01, gt=0)
-    check_interval_minutes: int = Field(default=5, ge=1, le=1440)
+    undercut_step: float = Field(default=0.01, ge=0.01)
+    check_interval_minutes: int = Field(default=5, ge=0, le=1440)
     auto_greeting_enabled: bool = Field(default=True)
     auto_greeting_message: str = Field(default="Hello! Thanks for choosing our store. Your order is being processed automatically.")
 

@@ -57,7 +57,7 @@ export default function HistoryPage() {
           id: `live-${Date.now()}`,
           old_price: prev[0]?.new_price ?? null,
           new_price: lastEvent.new_price,
-          lowest_competitor_price: null,
+          lowest_competitor_price: lastEvent.lowest_competitor_price ?? null,
           reason: lastEvent.reason,
           success: true,
           created_at: lastEvent.checked_at,

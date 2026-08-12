@@ -107,6 +107,7 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             "type": "price_update",
             "listing_id": listing_id_val,
             "new_price": listing_current_price,
+            "lowest_competitor_price": decision.lowest_competitor_price,
             "reason": decision.reason,
             "checked_at": checked_at_iso,
         })

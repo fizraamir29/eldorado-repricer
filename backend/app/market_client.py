@@ -151,7 +151,7 @@ class EldoradoClient:
         
         # Check if it's a Predefined Offer by looking at our active predefined offers
         try:
-            my_predef_offers = await self._request("GET", "/api/predefinedOffersUser/me")
+            my_predef_offers = await self._request("GET", "/api/predefinedOffers/user/me")
             if not isinstance(my_predef_offers, list):
                 my_predef_offers = []
         except Exception:
@@ -187,7 +187,7 @@ class EldoradoClient:
         # If it's not predefined, it must be a Flexible Offer
         # We need the game UUID because Eldorado's flexibleOffers endpoint requires it.
         try:
-            my_offers = await self._request("GET", "/api/flexibleOffersUser/me")
+            my_offers = await self._request("GET", "/api/flexibleOffers/user/me")
         except Exception as e:
             raise MarketplaceAPIError(f"Failed to fetch user flexible offers: {e}")
         if not isinstance(my_offers, list):
@@ -222,7 +222,7 @@ class EldoradoClient:
         
         # Determine if it's predefined or flexible by checking our own active lists
         try:
-            my_predef_offers = await self._request("GET", "/api/predefinedOffersUser/me")
+            my_predef_offers = await self._request("GET", "/api/predefinedOffers/user/me")
             if not isinstance(my_predef_offers, list): my_predef_offers = []
         except Exception:
             my_predef_offers = []
@@ -237,13 +237,13 @@ class EldoradoClient:
                 
         if is_predef:
             try:
-                return await self._request("PUT", f"/api/predefinedOffersUser/me/{listing_id}/changePrice", json=payload)
+                return await self._request("PUT", f"/api/predefinedOffers/user/me/{listing_id}/changePrice", json=payload)
             except Exception as e:
                 raise MarketplaceAPIError(f"Failed to update predefined offer price: {e}")
                 
         # If not predefined, assume flexible
         try:
-            return await self._request("PUT", f"/api/flexibleOffersUser/me/{listing_id}/changePrice", json=payload)
+            return await self._request("PUT", f"/api/flexibleOffers/user/me/{listing_id}/changePrice", json=payload)
         except Exception as e:
             raise MarketplaceAPIError(f"Failed to update flexible offer price: {e}")
 

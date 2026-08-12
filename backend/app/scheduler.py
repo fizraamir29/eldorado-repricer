@@ -55,35 +55,30 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
 
         old_price = float(listing.current_price)
         price_changed = decision.reason in ("undercut", "clamped_to_min", "clamped_to_max") and decision.new_price != old_price
+        
+        # If the target price is already queued for the extension, don't spam history
+        is_new_change = price_changed and (rule.pending_target_price is None or float(rule.pending_target_price) != float(decision.new_price))
 
-        history = PriceHistory(
-            listing_id=listing.id,
-            old_price=listing.current_price,
-            new_price=decision.new_price,
-            lowest_competitor_price=decision.lowest_competitor_price,
-            reason=decision.reason,
-            success=True,
-        )
-
-        if price_changed:
-            try:
-                await client.update_listing_price(listing.marketplace_listing_id, decision.new_price)
-                listing.current_price = decision.new_price
-            except Exception as exc:
-                logger.error(f"Failed to push new price to Eldorado for {listing.id}: {exc}")
-                history.success = False
-                history.reason = "api_error"
-                history.error_message = str(exc)
-                # Do NOT update listing.current_price so it tries again next time
+        if is_new_change:
+            history = PriceHistory(
+                listing_id=listing.id,
+                old_price=listing.current_price,
+                new_price=decision.new_price,
+                lowest_competitor_price=decision.lowest_competitor_price,
+                reason=decision.reason,
+                success=True, # Represents successfully queueing for the Chrome Extension
+            )
+            rule.pending_target_price = decision.new_price
+            session.add(history)
 
         listing.last_checked_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        session.add(history)
         session.add(listing)
+        session.add(rule)
 
         # Only create a follow-up message when something actually happened —
         # don't spam the user every single minute with "no change" noise.
         notification = None
-        if price_changed or decision.reason == "no_competitors":
+        if is_new_change or decision.reason == "no_competitors":
             level = "warning" if decision.reason in ("clamped_to_min", "clamped_to_max", "no_competitors") else "info"
             notification = Notification(
                 user_id=listing.user_id,
@@ -104,15 +99,17 @@ async def process_listing(session, listing: Listing, rule: AutomationRule, clien
             await session.refresh(notification)
 
         # Push live update to any open dashboard tab for this user.
-        await manager.send_to_user(listing_user_id, {
-            "type": "price_update",
-            "listing_id": listing_id_val,
-            "new_price": listing_current_price,
-            "lowest_competitor_price": decision.lowest_competitor_price,
-            "reason": history.reason,
-            "error_message": history.error_message if not history.success else None,
-            "checked_at": checked_at_iso,
-        })
+        if is_new_change:
+            await manager.send_to_user(listing_user_id, {
+                "type": "price_update",
+                "listing_id": listing_id_val,
+                "new_price": float(rule.pending_target_price),
+                "lowest_competitor_price": decision.lowest_competitor_price,
+                "reason": history.reason,
+                "error_message": history.error_message if not history.success else None,
+                "checked_at": checked_at_iso,
+                "status": "pending_extension"
+            })
         if notification:
             await manager.send_to_user(listing_user_id, {
                 "type": "notification",

@@ -18,7 +18,7 @@ from app.config import settings
 from app.logging_config import configure_logging
 from app.database import engine, Base
 from app.scheduler import start_scheduler, scheduler
-from app.routers import auth, listings, rules, history, notifications, ws, analytics
+from app.routers import auth, listings, rules, history, notifications, ws, analytics, extension
 
 configure_logging()
 logger = logging.getLogger("app")
@@ -60,6 +60,7 @@ app.include_router(history.router)
 app.include_router(notifications.router)
 app.include_router(analytics.router)
 app.include_router(ws.router)
+app.include_router(extension.router, prefix="/api/extension", tags=["extension"])
 
 
 @app.get("/")

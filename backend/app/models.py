@@ -87,6 +87,8 @@ class AutomationRule(Base):
     check_interval_minutes: Mapped[int] = mapped_column(Integer, default=5)
     auto_greeting_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_greeting_message: Mapped[str] = mapped_column(Text, default="Hello! Thanks for choosing our store. Your order is being processed automatically.")
+    
+    pending_target_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     listing: Mapped["Listing"] = relationship(back_populates="rule")
 

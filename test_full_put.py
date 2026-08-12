@@ -23,10 +23,14 @@ async def run():
             print(f"Auth failed: {auth_resp.status_code} {auth_resp.text}")
             return
         
-        token = auth_resp.json().get("AccessToken")
+        data = auth_resp.json()
+        token = data.get("AccessToken") or data.get("access_token") or data.get("accessToken")
+        
         if not token:
-            print("No token in response")
+            print(f"No token in response. Keys found: {list(data.keys())}")
+            print(data)
             return
+        print("Auth success!")
 
     headers = {
         "Authorization": f"Bearer {token}",
